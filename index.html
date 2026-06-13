@@ -461,43 +461,42 @@ function showUploadTab(show) {
 }
 
 // ========== DATA LOADING ==========
+
+// Fetch with timeout helper
+function fetchWithTimeout(url, timeoutMs) {
+  return new Promise(function(resolve, reject) {
+    let timer = setTimeout(function() { reject(new Error('请求超时 (' + timeoutMs/1000 + 's)')); }, timeoutMs);
+    fetch(url).then(function(resp) {
+      clearTimeout(timer);
+      resolve(resp);
+    }).catch(function(err) {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
 async function loadData() {
   let detailEl = document.getElementById('loading-detail');
 
-  // Step 1: Check remote version (tiny 171-byte file, instant)
-  if (detailEl) detailEl.textContent = '正在检查更新...';
-  let versionUrl = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '') + '/data/version.json';
-  let remoteVersion = null;
+  // ── Step 0: Try IndexedDB cache FIRST (fastest path, even without network) ──
+  if (detailEl) detailEl.textContent = '正在加载数据...';
   try {
-    let resp = await fetch(versionUrl, {cache: 'no-store'});
-    if (resp.ok) {
-      let v = await resp.json();
-      remoteVersion = v.updated;
-      console.log('Remote version:', remoteVersion);
+    let db = getDataCacheDB();
+    let cached = await db.cache.get('compact_data');
+    if (cached && cached.data) {
+      let json = JSON.parse(cached.data);
+      initData(json);
+      console.log('Loaded from IndexedDB cache (instant)');
+      // Background: check if newer version exists online
+      checkVersionInBackground(json);
+      return; // Success — instant!
     }
   } catch(e) {
-    console.warn('Version check failed, will try direct download');
+    console.warn('IndexedDB cache read failed:', e);
   }
 
-  // Step 2: If version matches, load from IndexedDB cache (instant!)
-  if (remoteVersion) {
-    try {
-      if (detailEl) detailEl.textContent = '正在从本地缓存加载...';
-      let db = getDataCacheDB();
-      let cached = await db.cache.get('compact_data');
-      if (cached && cached.version === remoteVersion && cached.data) {
-        let json = JSON.parse(cached.data);
-        initData(json);
-        console.log('Loaded from IndexedDB cache (version: ' + remoteVersion + ')');
-        return; // Success from cache — no network download
-      }
-      console.log('Cache miss or version mismatch');
-    } catch(e) {
-      console.warn('IndexedDB cache read failed:', e);
-    }
-  }
-
-  // Step 3: Fetch from network (only when cache miss or version changed)
+  // ── Step 1: No cache available, download from network ──
   if (detailEl) detailEl.textContent = '正在下载数据 (约8.8MB)...';
   let urls = [
     window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '') + '/data/after-sale-data-compact.json',
@@ -505,40 +504,98 @@ async function loadData() {
     'data/after-sale-data-compact.json',
   ];
 
-  let lastErr = null;
+  // Retry config: each URL gets up to 2 attempts with 2s delay between retries
+  let maxAttemptsPerUrl = 2;
+  let retryDelayMs = 2000;
+
   for (let i = 0; i < urls.length; i++) {
-    try {
-      console.log('Downloading data from:', urls[i]);
-      let resp = await fetch(urls[i]);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      let json = await resp.json();
-      initData(json);
-      console.log('Data loaded from URL #' + (i+1));
+    for (let attempt = 1; attempt <= maxAttemptsPerUrl; attempt++) {
+      try {
+        console.log('Downloading from [' + i + '] #' + attempt + ':', urls[i]);
+        if (attempt > 1 && detailEl) detailEl.textContent = '重试下载中... (' + i + '/' + urls.length + ')';
+        let resp = await fetchWithTimeout(urls[i], 60000); // 60s timeout per attempt
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        let json = await resp.json();
 
-      // Background: cache in IndexedDB for next visit
-      if (remoteVersion) {
-        let rawJson = JSON.stringify(json);
-        getDataCacheDB().then(function(db) {
-          return db.cache.put({key: 'compact_data', version: remoteVersion, data: rawJson});
-        }).then(function() {
-          console.log('Data cached in IndexedDB for next visit');
-        }).catch(function(e) {
-          console.warn('IndexedDB cache write failed (non-critical):', e);
-        });
+        // Cache for next visit (background)
+        cacheDataInBackground(json);
+
+        initData(json);
+        console.log('Data loaded from URL [' + i + '] #' + attempt);
+        return; // Success
+      } catch(e) {
+        console.warn('URL [' + i + '] #' + attempt + ' failed:', e.message);
+        if (attempt < maxAttemptsPerUrl && i < urls.length - 1) {
+          // Wait before retrying same URL
+          await new Promise(function(r) { setTimeout(r, retryDelayMs); });
+        } else if (attempt === maxAttemptsPerUrl && i < urls.length - 1) {
+          // Move to next URL after last attempt of current URL failed
+          await new Promise(function(r) { setTimeout(r, 1000); });
+        }
       }
-
-      return; // Success
-    } catch(e) {
-      lastErr = e;
-      console.warn('URL #' + (i+1) + ' failed:', e.message);
     }
   }
 
-  // All URLs failed
-  console.error('All data URLs failed:', lastErr);
+  // All URLs exhausted — final attempt: try cache one more time (might have been written by another tab)
+  console.error('All download URLs failed, trying cache as last resort...');
+  try {
+    let db = getDataCacheDB();
+    let cached = await db.cache.get('compact_data');
+    if (cached && cached.data) {
+      let json = JSON.parse(cached.data);
+      initData(json);
+      showToast('网络不可用，已使用本地缓存数据（可能不是最新）', 'warn');
+      console.log('Fallback: loaded from IndexedDB cache as last resort');
+      return;
+    }
+  } catch(e) {}
+
+  // Truly nothing worked
+  console.error('All data sources exhausted');
   document.getElementById('status-after').textContent = '售后: 加载失败';
   document.getElementById('status-sales').textContent = '销量: 加载失败';
   showToast('数据加载失败，请检查网络连接后刷新页面', 'error');
+}
+
+// Background: fetch latest version and update cache if needed
+function checkVersionInBackground(currentData) {
+  let versionUrl = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '') + '/data/version.json';
+  fetch(versionUrl, {cache: 'no-store'}).then(function(resp) {
+    if (!resp.ok) return;
+    return resp.json();
+  }).then(function(v) {
+    if (!v || !v.updated) return;
+    let db = getDataCacheDB();
+    return db.cache.get('compact_data').then(function(cached) {
+      if (cached && cached.version !== v.updated) {
+        console.log('Newer version detected, will update on next reload');
+        showToast('检测到新数据版本，下次刷新将自动更新', '');
+      }
+    });
+  }).catch(function() {});
+}
+
+// Background: write downloaded data to IndexedDB cache
+function cacheDataInBackground(json) {
+  try {
+    let rawJson = JSON.stringify(json);
+    // Get version info for cache key
+    let versionUrl = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '') + '/data/version.json';
+    fetch(versionUrl, {cache: 'no-store'}).then(function(resp) {
+      if (resp.ok) return resp.json();
+      return {};
+    }).then(function(v) {
+      getDataCacheDB().then(function(db) {
+        return db.cache.put({key: 'compact_data', version: (v.updated || 'unknown'), data: rawJson});
+      }).then(function() {
+        console.log('Data cached in IndexedDB for next visit');
+      }).catch(function(e) {
+        console.warn('IndexedDB cache write failed (non-critical):', e);
+      });
+    }).catch(function() {});
+  } catch(e) {
+    console.warn('cacheDataInBackground error:', e);
+  }
 }
 
 function expandCompact(json) {
