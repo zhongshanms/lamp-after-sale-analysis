@@ -1505,31 +1505,27 @@ async function resetUploadData() {
     if (uploadDB) { try { uploadDB.close(); } catch(e) {} uploadDB = null; }
     if (dataCacheDB) { try { dataCacheDB.close(); } catch(e) {} dataCacheDB = null; }
 
-    // ── 步骤2: 用原生 IndexedDB API 彻底删除数据库（Dexie.delete 可能静默失败）──
-    async function nativeDeleteDB(dbName) {
-      return new Promise(function(resolve, reject) {
+    // ── 步骤2: 用原生 IndexedDB API 彻底删除数据库 ──
+    function nativeDeleteDB(dbName) {
+      return new Promise(function(resolve) {
         var req = indexedDB.deleteDatabase(dbName);
-        var done = false;
+        var resolved = false;
+
         req.onsuccess = function() {
-          if (!done) { done = true; console.log('IndexedDB [' + dbName + '] deleted'); resolve(true); }
+          if (!resolved) { resolved = true; console.log('IndexedDB [' + dbName + '] deleted'); resolve(true); }
         };
-        req.onerror = function(e) {
-          if (!done) { done = true; console.warn('IndexedDB [' + dbName + '] delete error:', e.target.error); resolve(false); }
+        req.onerror = function() {
+          if (!resolved) { resolved = true; console.warn('IndexedDB [' + dbName + '] delete error:', req.error); resolve(false); }
         };
+        // onblocked: 浏览器会等所有连接关闭后再删除，这里只需等待 onsuccess
         req.onblocked = function() {
-          console.warn('IndexedDB [' + dbName + '] deletion blocked (open connections exist), retrying...');
-          // 延迟后重试一次
-          setTimeout(function() {
-            if (done) return;
-            var req2 = indexedDB.deleteDatabase(dbName);
-            req2.onsuccess = function() { if (!done) { done = true; resolve(true); } };
-            req2.onerror = function() { if (!done) { done = true; resolve(false); } };
-          }, 800);
+          console.warn('IndexedDB [' + dbName + '] deletion blocked, waiting for connections to close...');
         };
-        // 超时保护：5秒后强制 resolve
+
+        // 超时保护：8秒后强制继续（onblocked 情况下浏览器最终会触发 onsuccess）
         setTimeout(function() {
-          if (!done) { done = true; console.warn('IndexedDB [' + dbName + '] delete timeout, continuing anyway'); resolve(false); }
-        }, 5000);
+          if (!resolved) { resolved = true; console.warn('IndexedDB [' + dbName + '] delete timeout, continuing...'); resolve(false); }
+        }, 8000);
       });
     }
 
