@@ -795,13 +795,35 @@ async function mergeUploadedData() {
       return;
     }
 
-    // Show sample record for debugging
-    if (allRecords.length > 0) {
-      var sample = allRecords[0];
-      console.log('[MERGE]   Sample record: type=' + sample.type + ', year=' + sample.year + ', has data=' + (sample.data ? 'YES' : 'NO'));
-      if (sample.data) {
-        console.log('[MERGE]   Sample data keys:', Object.keys(sample.data).slice(0, 10));
-      }
+    // Show sample records for debugging — find one of each type
+    var sampleAfter = null, sampleSales = null;
+    for (var si = 0; si < allRecords.length; si++) {
+      var rec = allRecords[si];
+      if (!sampleAfter && rec.type === 'after') sampleAfter = rec;
+      if (!sampleSales && rec.type === 'sales') sampleSales = rec;
+      if (sampleAfter && sampleSales) break;
+    }
+    if (sampleAfter) {
+      var afterKeys = sampleAfter.data ? Object.keys(sampleAfter.data) : [];
+      var afterVals = sampleAfter.data ? Object.values(sampleAfter.data).slice(0, 5) : [];
+      console.log('[MERGE]   Sample AFTER keys (' + afterKeys.length + '):', afterKeys.slice(0,20));
+      console.log('[MERGE]   Sample AFTER values (first 5):', afterVals);
+      debugLog('[Merge#' + callNum + '] 售后Excel列名(' + afterKeys.length + '个): ' + afterKeys.slice(0,15).join(', '));
+      var tidCheck = sampleAfter.data.ticket_id + ' | ' + sampleAfter.data['工单号'] + ' | ' + sampleAfter.data['Ticket ID'];
+      debugLog('[Merge#' + callNum + '] 售后 key 查找(ticket_id/工单号/Ticket ID): ' + tidCheck);
+    }
+    if (sampleSales) {
+      var salesKeys = sampleSales.data ? Object.keys(sampleSales.data) : [];
+      var salesVals = sampleSales.data ? Object.values(sampleSales.data).slice(0, 5) : [];
+      console.log('[MERGE]   Sample SALES keys (' + salesKeys.length + '):', salesKeys.slice(0,20));
+      console.log('[MERGE]   Sample SALES values (first 5):', salesVals);
+      debugLog('[Merge#' + callNum + '] 销量Excel列名(' + salesKeys.length + '个): ' + salesKeys.slice(0,15).join(', '));
+      var dCheck = sampleSales.data.date + ' | ' + sampleSales.data['日期'] + ' | ' + sampleSales.data['Date'];
+      var sCheck = sampleSales.data.sku + ' | ' + sampleSales.data['SKU'];
+      debugLog('[Merge#' + callNum + '] 销量 key 查找(date/日期/Date): ' + dCheck + ' | (sku/SKU): ' + sCheck);
+    }
+    if (!sampleAfter && !sampleSales) {
+      debugLog('[Merge#' + callNum + '] 无售后和销量记录', 'error');
     }
 
     // Build existing key sets for dedup
