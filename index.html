@@ -295,8 +295,6 @@ tbody tr:hover{background:#f8f9ff}
     <button class="btn btn-outline" onclick="resetAnalysis()">🔄 重置</button>
     <button class="btn btn-primary" onclick="applyAnalysis()">🔍 应用</button>
   </div>
-  <div class="data-table-wrap"><h3>一、售后类型分布</h3><div class="table-scroll"><table><thead><tr><th>售后类型</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisType"></tbody></table></div></div>
-  <div class="data-table-wrap"><h3>二、售后原因 TOP20</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>售后原因</th><th>工单数</th><th>占比</th><th>累计占比</th></tr></thead><tbody id="analysisReason"></tbody></table></div></div>
   <div class="data-table-wrap"><h3>三、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>标签</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
   <div class="data-table-wrap"><h3>四、责任方分析</h3><div class="table-scroll"><table><thead><tr><th>责任方</th><th>工单数</th><th>占比</th><th>退货总量</th></tr></thead><tbody id="analysisResp"></tbody></table></div></div>
   <div class="data-table-wrap"><h3>五、退货数量 TOP20 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>商品名称</th><th>工单数</th><th>退货总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
@@ -1022,25 +1020,6 @@ function resetAnalysis() {
 function applyAnalysisWithParams(start, end, skuTerm) {
   let afterF = filterAfterSale(start, end, skuTerm);
 
-  // 一、售后类型分布
-  let typeMap = {};
-  afterF.forEach(r => { let t = r.after_sale_type||'其他'; typeMap[t] = (typeMap[t]||0) + 1; });
-  let total1 = afterF.length;
-  let typeArr = Object.entries(typeMap).sort((a,b) => b[1]-a[1]);
-  document.getElementById('analysisType').innerHTML = typeArr.map(([k,v]) =>
-    `<tr><td>${k}</td><td>${fmtNum(v)}</td><td>${fmtPct(v,total1)}</td></tr>`
-  ).join('');
-
-  // 二、售后原因 TOP20
-  let reasonMap = {};
-  afterF.forEach(r => { let t = r.reason||'其他'; reasonMap[t] = (reasonMap[t]||0) + 1; });
-  let total2 = afterF.length;
-  let reasonArr = Object.entries(reasonMap).sort((a,b) => b[1]-a[1]).slice(0,20);
-  let cum2 = 0;
-  document.getElementById('analysisReason').innerHTML = reasonArr.map(([k,v],i) => {
-    cum2 += v;
-    return `<tr><td>${i+1}</td><td>${k}</td><td>${fmtNum(v)}</td><td>${fmtPct(v,total2)}</td><td>${fmtPct(cum2,total2)}</td></tr>`;
-  }).join('');
 
   // 三、标签分布 TOP30
   let tagMap = {};
