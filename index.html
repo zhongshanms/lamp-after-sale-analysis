@@ -688,7 +688,7 @@ function expandCompact(json) {
 async function mergeUploadedData() {
   // ── 如果刚执行过重置，跳过合并并清除标记 ──
   if (sessionStorage.getItem('data_reset_pending') === '1') {
-    console.log('mergeUploadedData: skip (data reset pending)');
+    console.log('[MERGE] mergeUploadedData: skip (data reset pending)');
     sessionStorage.removeItem('data_reset_pending');
     // 额外保险：再清一次 UploadStore
     try {
@@ -698,21 +698,58 @@ async function mergeUploadedData() {
     return;
   }
 
+  console.log('[MERGE] mergeUploadedData: starting...');
+  console.log('[MERGE]   gAfterSale before:', gAfterSale.length, '  gSales before:', gSales.length);
+
   try {
     let db = getUploadDB();
+    console.log('[MERGE]   UploadDB ready, fetching all records...');
     let allRecords = await db.records.toArray();
-    if (!allRecords || allRecords.length === 0) return;
+    console.log('[MERGE]   UploadDB records fetched:', allRecords ? allRecords.length : 0);
+
+    if (!allRecords || allRecords.length === 0) {
+      console.log('[MERGE]   UploadDB is empty, nothing to merge');
+      return;
+    }
+
+    // Show sample record for debugging
+    if (allRecords.length > 0) {
+      var sample = allRecords[0];
+      console.log('[MERGE]   Sample record: type=' + sample.type + ', year=' + sample.year + ', has data=' + (sample.data ? 'YES' : 'NO'));
+      if (sample.data) {
+        console.log('[MERGE]   Sample data keys:', Object.keys(sample.data).slice(0, 10));
+      }
+    }
 
     // Build existing key sets for dedup
-    let existingAfterKeys = new Set(gAfterSale.map(function(r) { return r.ticket_id; }).filter(Boolean));
-    let existingSalesKeys = new Set(gSales.map(function(r) { return (r.date_date||r.date||'') + '||' + (r.sku||''); }));
+    var existingAfterKeys = new Set();
+    var afterKeysDebug = { total: gAfterSale.length, withTicketId: 0 };
+    gAfterSale.forEach(function(r) {
+      if (r.ticket_id) { existingAfterKeys.add(r.ticket_id); afterKeysDebug.withTicketId++; }
+    });
+    console.log('[MERGE]   Existing after-sale keys: ' + afterKeysDebug.withTicketId + ' / ' + afterKeysDebug.total);
 
-    var afterAdded = 0, salesAdded = 0;
+    var existingSalesKeys = new Set();
+    var salesKeysDebug = { total: gSales.length, withKey: 0 };
+    gSales.forEach(function(r) {
+      var d = r.date_date || r.date || '';
+      var s = r.sku || '';
+      if (d && s) { existingSalesKeys.add(d + '||' + s); salesKeysDebug.withKey++; }
+    });
+    console.log('[MERGE]   Existing sales keys: ' + salesKeysDebug.withKey + ' / ' + salesKeysDebug.total);
+
+    var afterAdded = 0, afterSkipped = 0, afterNoKey = 0;
+    var salesAdded = 0, salesSkipped = 0, salesNoKey = 0;
+    var otherType = 0;
+
     allRecords.forEach(function(rec) {
       var row = rec.data;
+      if (!row) return;
+
       if (rec.type === 'after') {
         var tid = row.ticket_id || row['工单号'] || row['Ticket ID'] || '';
-        if (!tid || existingAfterKeys.has(tid)) return;
+        if (!tid) { afterNoKey++; return; }
+        if (existingAfterKeys.has(tid)) { afterSkipped++; return; }
         existingAfterKeys.add(tid);
         gAfterSale.push({
           ticket_id: tid,
@@ -733,11 +770,12 @@ async function mergeUploadedData() {
           year: rec.year || 0,
         });
         afterAdded++;
-      } else {
+      } else if (rec.type === 'sales') {
         var d = row.date || row['日期'] || row['Date'] || '';
         var s = row.sku || row['SKU'] || '';
         var uk = d + '||' + s;
-        if (!d || !s || existingSalesKeys.has(uk)) return;
+        if (!d || !s) { salesNoKey++; return; }
+        if (existingSalesKeys.has(uk)) { salesSkipped++; return; }
         existingSalesKeys.add(uk);
         gSales.push({
           date: d, date_date: d, sku: s,
@@ -753,14 +791,32 @@ async function mergeUploadedData() {
           refund_amount: 0, return_qty: 0, refund_status: '', reason: '', tag: '', after_sale_type: '',
         });
         salesAdded++;
+      } else {
+        otherType++;
       }
     });
 
+    console.log('[MERGE]   After-sale: +' + afterAdded + ' added, ' + afterSkipped + ' skipped, ' + afterNoKey + ' no-key');
+    console.log('[MERGE]   Sales:      +' + salesAdded + ' added, ' + salesSkipped + ' skipped, ' + salesNoKey + ' no-key');
+    if (otherType > 0) console.log('[MERGE]   Other type records: ' + otherType);
+    console.log('[MERGE]   gAfterSale after: ' + gAfterSale.length + ', gSales after: ' + gSales.length);
+
     if (afterAdded > 0 || salesAdded > 0) {
-      console.log('Merged uploaded data: +' + afterAdded + ' after-sale, +' + salesAdded + ' sales');
+      console.log('[MERGE] Merged uploaded data: +' + afterAdded + ' after-sale, +' + salesAdded + ' sales');
+
+      // Invalidate DataCache so next page load downloads fresh data (not stale cache)
+      try {
+        var cacheDB = getDataCacheDB();
+        await cacheDB.cache.delete('compact_data');
+        console.log('[MERGE] DataCache cleared (will re-download on next visit)');
+      } catch(ec) {
+        console.warn('[MERGE] DataCache clear failed:', ec);
+      }
     }
   } catch(e) {
-    console.warn('mergeUploadedData failed (non-critical):', e);
+    console.error('[MERGE] mergeUploadedData FAILED:', e);
+    console.error('[MERGE] Error stack:', e.stack);
+    showToast('数据合并出错: ' + String(e.message || e).substring(0, 80), 'error');
   }
 }
 
@@ -1469,13 +1525,18 @@ function processUpload(file, type) {
         statusEl.textContent = `累计: ${totalStored} 条 | 本次新增: ${newRecords.length} 条，跳过重复: ${skipped} 条`;
 
         // Refresh page data with newly uploaded records
-        if (newRecords.length > 0 && gAfterSale.length > 0) {
+        if (newRecords.length > 0) {
+          console.log('[UPLOAD] Calling mergeUploadedData...');
           await mergeUploadedData();
+          // Update status bar
+          document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
+          document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
           refreshOverview();
           refreshCharts();
           refreshAnalysis();
           refreshDetail();
           refreshDBStatus();
+          console.log('[UPLOAD] All views refreshed after merge');
         }
       } catch(err) {
         if (err.name === 'QuotaExceededError' || err.message.includes('quota')) {
