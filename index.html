@@ -233,8 +233,8 @@ tbody tr:hover{background:#f8f9ff}
       <span class="text-muted" style="margin-left:8px;font-size:var(--font-sm)">同步后将自动推送到 GitHub 仓库</span>
     </div>
     <div class="mt-16 text-center" style="border-top:1px dashed #e0e0e0;padding-top:16px">
-      <button class="btn btn-outline" onclick="resetUploadData()" style="color:#e15759;border-color:#e15759">🗑️ 重置上传数据</button>
-      <span class="text-muted" style="margin-left:8px;font-size:var(--font-sm)">清空所有上传的表格数据，恢复为预置数据</span>
+      <button class="btn btn-outline" onclick="resetUploadData()" style="color:#e15759;border-color:#e15759">🗑️ 清空全部数据</button>
+      <span class="text-muted" style="margin-left:8px;font-size:var(--font-sm)">清空所有数据（含预置数据），页面变为空白后可重新上传</span>
     </div>
   </div>
 </div>
@@ -482,6 +482,27 @@ function fetchWithTimeout(url, timeoutMs) {
 
 async function loadData() {
   let detailEl = document.getElementById('loading-detail');
+
+  // ── 彻底重置模式：不加载任何数据，页面空白 ──
+  if (sessionStorage.getItem('data_reset_pending') === '1') {
+    console.log('[RESET] Full reset mode: skipping all data loading');
+    sessionStorage.removeItem('data_reset_pending');
+    gData = {};
+    gAfterSale = [];
+    gSales = [];
+    document.getElementById('status-after').textContent = '售后: 0条';
+    document.getElementById('status-sales').textContent = '销量: 0条';
+    // Hide loading overlay if present
+    var overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'none';
+    refreshOverview();
+    refreshCharts();
+    refreshAnalysis();
+    refreshDetail();
+    refreshDBStatus();
+    showToast('✅ 所有数据已清空，可上传新数据', 'success');
+    return;
+  }
 
   // ── Step 0: Try IndexedDB cache FIRST (fastest path, even without network) ──
   if (detailEl) detailEl.textContent = '正在加载数据...';
@@ -1494,7 +1515,7 @@ async function syncToServer() {
 }
 
 async function resetUploadData() {
-  if (!confirm('⚠️ 确认清空所有上传数据？\n\n这将删除您通过上传管理添加的全部售后工单和销量数据。\n清空后将自动刷新页面，恢复为预置数据。\n\n此操作不可撤销！')) {
+  if (!confirm('⚠️ 确认清空所有数据？\n\n这将删除包括预置数据在内的全部售后工单和销量数据。\n页面将变为空白状态，您可以重新上传新数据。\n\n此操作不可撤销！')) {
     return;
   }
 
