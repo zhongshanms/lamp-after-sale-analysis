@@ -842,32 +842,69 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
       data: {
         labels: periods,
         datasets: [
-          { label: '订单量', data: salesVals, backgroundColor: 'rgba(78,121,167,0.8)', borderRadius: 4 },
-          { label: '售后订单量', data: afterVals, backgroundColor: 'rgba(225,87,89,0.8)', borderRadius: 4 },
+          // 售后订单量 — 折线图（放在前面，图例售后在前）
+          {
+            label: '售后订单量',
+            data: afterVals,
+            type: 'line',
+            borderColor: '#e15759',
+            backgroundColor: 'rgba(225,87,89,0.15)',
+            fill: false,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: '#e15759',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            order: 1,
+          },
+          // 订单量 — 柱状图
+          {
+            label: '订单量',
+            data: salesVals,
+            backgroundColor: 'rgba(78,121,167,0.8)',
+            borderRadius: 4,
+            order: 2,
+          },
         ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { tooltip: {} },
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 12 }, padding: 16 } },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+              afterBody: items => {
+                let i = items[0]?.dataIndex;
+                if (i !== undefined && salesVals[i] > 0) {
+                  let rate = (afterVals[i] / salesVals[i] * 100).toFixed(1);
+                  return `售后率: ${rate}%`;
+                }
+                return '';
+              }
+            }
+          }
+        },
         scales: {
           y: { beginAtZero: true, ticks: { callback: v => fmtNum(v) }, grid: { color: '#f0f0f0' } },
-          x: { grid: { display: false }, stacked: false }
-        },
-        plugins: {
-          legend: { position: 'top', labels: { font: { size: 12 }, padding: 16 } }
+          x: { grid: { display: false } }
         }
       },
       plugins: [{
         id: 'afterRateLabels',
         afterDatasetsDraw(chart) {
-          let meta = chart.getDatasetMeta(1); // after-sale dataset
-          meta.data.forEach((bar, i) => {
-            let rate = afterRateVals[i];
-            chart.ctx.fillStyle = '#e15759';
-            chart.ctx.font = 'bold 11px sans-serif';
-            chart.ctx.textAlign = 'center';
-            chart.ctx.fillText(rate + '%', bar.x, bar.y - 10);
+          // 在折线数据点上方标注售后率
+          let lineMeta = chart.getDatasetMeta(0); // 折线（售后订单量）
+          lineMeta.data.forEach((point, i) => {
+            if (salesVals[i] > 0) {
+              let rate = (afterVals[i] / salesVals[i] * 100).toFixed(1);
+              chart.ctx.fillStyle = '#e15759';
+              chart.ctx.font = 'bold 11px sans-serif';
+              chart.ctx.textAlign = 'center';
+              chart.ctx.fillText(rate + '%', point.x, point.y - 12);
+            }
           });
         }
       }]
