@@ -1307,7 +1307,13 @@ document.getElementById('loginModal').addEventListener('click', function(e) {
     // Show loading overlay
     let overlay = document.createElement('div');
     overlay.id = 'loading-overlay';
-    overlay.innerHTML = '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card-bg);padding:32px 48px;border-radius:var(--radius);box-shadow:0 8px 32px rgba(0,0,0,.15);text-align:center;z-index:500"><div style="font-size:2rem;margin-bottom:12px">⏳</div><div style="font-size:1rem;color:var(--text)">正在加载数据...</div><div id="loading-detail" style="font-size:0.8rem;color:var(--text-secondary);margin-top:6px"></div></div>';
+    let loadingHTML = '';
+    loadingHTML += '<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%)">';
+    loadingHTML += '<div style="font-size:2rem;margin-bottom:12px">⏳</div>';
+    loadingHTML += '<div style="font-size:1rem">正在加载数据...</div>';
+    loadingHTML += '<div id="loading-detail" style="font-size:0.8rem;margin-top:6px"></div>';
+    loadingHTML += '</div>';
+    overlay.innerHTML = loadingHTML;
     document.body.appendChild(overlay);
 
     loadData().then(() => {
