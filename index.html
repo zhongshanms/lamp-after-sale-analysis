@@ -316,7 +316,7 @@ tbody tr:hover{background:#f8f9ff}
       <table>
         <thead><tr>
           <th class="sortable" onclick="sortDetail('create_time')">创建时间 <span class="sort-icon">▼▲</span></th>
-          <th>SKU</th><th>商品名称</th><th>售后类型</th><th>售后原因</th><th>标签</th>
+          <th>SKU</th><th>售后类型</th><th>售后原因</th><th>标签</th>
           <th>售后数量</th>
         </tr></thead>
         <tbody id="detailTable"></tbody>
@@ -1044,7 +1044,7 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
     let orderQty = groupMapSL[p] || 0;
     return `<tr>
       <td>${p}</td><td>${fmtNum(orderQty)}</td><td>${fmtNum(as.count)}</td><td>${fmtNum(as.returnQty)}</td>
-      <td>${as.skus.size}</td>
+      <td>${as.skus.size}</td><td>${orderQty > 0 ? (as.count/orderQty*100).toFixed(2) + '%' : '-'}</td>
     </tr>`;
   }).join('');
 }
@@ -1214,7 +1214,6 @@ function applyDetailWithParams() {
     <tr>
       <td>${r.create_time||r.create_date||''}</td>
       <td>${r.sku}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${r.product_name}">${r.product_name}</td>
       <td>${r.after_sale_type}</td>
       <td>${r.reason}</td>
       <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${r.tag}">${r.tag}</td>
