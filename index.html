@@ -229,8 +229,8 @@ tbody tr:hover{background:#f8f9ff}
       </table>
     </div>
     <div class="mt-16 text-center">
-      <button class="btn btn-primary" onclick="syncToServer()">🚀 同步到云端</button>
-      <span class="text-muted" style="margin-left:8px;font-size:var(--font-sm)">同步后将自动推送到 GitHub 仓库</span>
+      <button class="btn btn-primary" onclick="syncToServer()">📥 导出数据文件</button>
+      <span class="text-muted" style="margin-left:8px;font-size:var(--font-sm)">导出后请通知我同步到 GitHub</span>
     </div>
     <div class="mt-16 text-center" style="border-top:1px dashed #e0e0e0;padding-top:16px">
       <button class="btn btn-outline" onclick="resetUploadData()" style="color:#e15759;border-color:#e15759">🗑️ 清空全部数据</button>
@@ -1495,23 +1495,106 @@ function processUpload(file, type) {
 }
 
 async function syncToServer() {
-  showToast('正在同步数据到云端...', '');
+  showToast('正在准备数据导出...', '');
 
-  // Build sync payload
-  let payload = {
-    version: gData?.meta?.generated_at || new Date().toISOString(),
-    after_sale_count: gAfterSale.length,
-    sales_count: gSales.length,
-    timestamp: new Date().toISOString(),
-  };
+  try {
+    // ── 1. 汇总元数据 ──
+    var now = new Date();
+    var nowStr = now.getFullYear() + '-' +
+      String(now.getMonth()+1).padStart(2,'0') + '-' +
+      String(now.getDate()).padStart(2,'0') + ' ' +
+      String(now.getHours()).padStart(2,'0') + ':' +
+      String(now.getMinutes()).padStart(2,'0') + ':' +
+      String(now.getSeconds()).padStart(2,'0');
 
-  // Store sync timestamp
-  localStorage.setItem(STORAGE_CLOUD_KEY, new Date().toISOString());
+    // 计算日期范围
+    var dates = [];
+    for (var i = 0; i < gAfterSale.length; i++) {
+      var d = gAfterSale[i].create_date || gAfterSale[i].create_time || '';
+      if (d) dates.push(d.substring(0,10));
+    }
+    dates.sort();
+    var afterMin = dates[0] || '';
+    var afterMax = dates[dates.length-1] || '';
 
-  // For GitHub Pages static deployment, we rely on Git push
-  // The actual push will be done via the GitHub integration
-  showToast('数据已准备好同步。点击下方按钮完成 GitHub 推送', 'success');
-  alert('请在终端执行以下命令完成同步：\n\ncd lamp-after-sale-analysis\ngit add data/\ngit commit -m "Update data"\ngit push origin main');
+    var sdates = [];
+    for (var i = 0; i < gSales.length; i++) {
+      var sd = gSales[i].date_date || gSales[i].date || '';
+      if (sd) sdates.push(sd.substring(0,10));
+    }
+    sdates.sort();
+    var sMin = sdates[0] || '';
+    var sMax = sdates[sdates.length-1] || '';
+
+    // 计算总订单量
+    var totalOrders = 0;
+    for (var i = 0; i < gSales.length; i++) {
+      totalOrders += (parseInt(gSales[i].order_qty) || 1);
+    }
+
+    // 计算年度统计
+    var yearMap = {};
+    for (var i = 0; i < gAfterSale.length; i++) {
+      var y = gAfterSale[i].year || 0;
+      if (!yearMap[y]) yearMap[y] = {after:0, sales:0, orders:0, returnQty:0};
+      yearMap[y].after++;
+      yearMap[y].returnQty += (parseInt(gAfterSale[i].return_qty) || 1);
+    }
+    for (var i = 0; i < gSales.length; i++) {
+      var y = gSales[i].year || 0;
+      if (!yearMap[y]) yearMap[y] = {after:0, sales:0, orders:0, returnQty:0};
+      yearMap[y].sales++;
+      yearMap[y].orders += (parseInt(gSales[i].order_qty) || 1);
+    }
+
+    var years = Object.keys(yearMap).sort();
+    var yearSummary = {};
+    for (var k = 0; k < years.length; k++) {
+      var y = years[k];
+      yearSummary[y] = yearMap[y];
+    }
+
+    // ── 2. 构建导出 JSON ──
+    var exportData = {
+      meta: {
+        generated_at: nowStr,
+        total_after_sale: gAfterSale.length,
+        total_sales: gSales.length,
+        total_orders: totalOrders,
+        date_range: {
+          after_sale_min: afterMin,
+          after_sale_max: afterMax,
+          sales_min: sMin,
+          sales_max: sMax
+        },
+        years: years.map(Number)
+      },
+      year_summary: yearSummary,
+      after_sale_records: gAfterSale,
+      sales_records: gSales
+    };
+
+    // ── 3. 触发浏览器下载 ──
+    var jsonStr = JSON.stringify(exportData, null, 2);
+    var blob = new Blob([jsonStr], {type: 'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'export-data-' + nowStr.substring(0,10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    // ── 4. 保存同步时间戳 ──
+    localStorage.setItem(STORAGE_CLOUD_KEY, nowStr);
+
+    showToast('✅ 数据已导出下载！共 ' + gAfterSale.length + ' 条售后 + ' + gSales.length + ' 条销量', 'success');
+
+  } catch(e) {
+    console.error('[SYNC] Export error:', e);
+    showToast('导出失败: ' + e.message, 'error');
+  }
 }
 
 async function resetUploadData() {
