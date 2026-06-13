@@ -227,7 +227,7 @@ def main(export_file):
     with open(OUTPUT_VERSION, 'w', encoding='utf-8') as f:
         json.dump(version, f, ensure_ascii=False, indent=2)
 
-    print("\n✅ 转换完成！")
+    print("\n[OK] Conversion completed!")
 
 if __name__ == '__main__':
     try:
