@@ -232,6 +232,10 @@ tbody tr:hover{background:#f8f9ff}
       <button class="btn btn-primary" onclick="syncToServer()">🚀 同步到云端</button>
       <span class="text-muted" style="margin-left:8px;font-size:var(--font-sm)">同步后将自动推送到 GitHub 仓库</span>
     </div>
+    <div class="mt-16 text-center" style="border-top:1px dashed #e0e0e0;padding-top:16px">
+      <button class="btn btn-outline" onclick="resetUploadData()" style="color:#e15759;border-color:#e15759">🗑️ 重置上传数据</button>
+      <span class="text-muted" style="margin-left:8px;font-size:var(--font-sm)">清空所有上传的表格数据，恢复为预置数据</span>
+    </div>
   </div>
 </div>
 
@@ -261,7 +265,7 @@ tbody tr:hover{background:#f8f9ff}
     <h3>详细对比数据</h3>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>分组</th><th>订单量</th><th>工单数</th><th>售后数</th><th>涉及SKU</th></tr></thead>
+        <thead><tr><th>分组</th><th>订单量</th><th>工单数</th><th>售后数</th><th>涉及SKU</th><th>售后率</th></tr></thead>
         <tbody id="overviewTable"></tbody>
       </table>
     </div>
@@ -1383,6 +1387,36 @@ async function syncToServer() {
   // The actual push will be done via the GitHub integration
   showToast('数据已准备好同步。点击下方按钮完成 GitHub 推送', 'success');
   alert('请在终端执行以下命令完成同步：\n\ncd lamp-after-sale-analysis\ngit add data/\ngit commit -m "Update data"\ngit push origin main');
+}
+
+async function resetUploadData() {
+  if (!confirm('⚠️ 确认清空所有上传数据？\n\n这将删除您通过上传管理添加的全部售后工单和销量数据。\n清空后将自动刷新页面，恢复为预置数据。\n\n此操作不可撤销！')) {
+    return;
+  }
+
+  try {
+    // Clear UploadStore DB
+    let uploadDB = getUploadDB();
+    await uploadDB.records.clear();
+
+    // Clear DataCache DB
+    let dataDB = getDataCacheDB();
+    await dataDB.cache.clear();
+
+    // Clear localStorage metadata
+    let keys = Object.keys(localStorage);
+    keys.forEach(function(k) {
+      if (k.startsWith('upload_') || k.startsWith('supply_') || k.startsWith('sale_')) {
+        localStorage.removeItem(k);
+      }
+    });
+
+    showToast('数据已重置，正在刷新...', 'success');
+    setTimeout(function() { window.location.reload(true); }, 1500);
+  } catch(e) {
+    console.error('重置数据失败:', e);
+    showToast('重置失败: ' + e.message, 'error');
+  }
 }
 
 // ========== NAVIGATION ==========
