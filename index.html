@@ -261,7 +261,6 @@ tbody tr:hover{background:#f8f9ff}
     <label>分组:</label><select id="ov-granularity"><option value="month">按月</option><option value="week">按周</option><option value="day">按日</option></select>
     <label>SKU:</label><input type="text" id="ov-sku" placeholder="搜索SKU...">
     <button class="btn btn-outline" onclick="resetOverview()">🔄 重置</button>
-    <button class="btn btn-primary" onclick="applyOverview()">🔍 确定</button>
   </div>
   <div class="stats-cards" id="overviewCards"></div>
   <div class="chart-section">
@@ -294,7 +293,6 @@ tbody tr:hover{background:#f8f9ff}
     <label>分组:</label><select id="ch-granularity"><option value="month">按月</option><option value="week">按周</option><option value="day">按日</option></select>
     <label>SKU:</label><input type="text" id="ch-sku" placeholder="搜索SKU...">
     <button class="btn btn-outline" onclick="resetCharts()">🔄 重置</button>
-    <button class="btn btn-primary" onclick="applyCharts()">🔍 确定</button>
   </div>
   <div class="chart-grid">
     <div class="chart-box"><h4>① 售后工单趋势</h4><canvas id="chart1"></canvas></div>
@@ -311,7 +309,6 @@ tbody tr:hover{background:#f8f9ff}
     <label>至</label><input type="date" id="an-end">
     <label>SKU:</label><input type="text" id="an-sku" placeholder="搜索SKU...">
     <button class="btn btn-outline" onclick="resetAnalysis()">🔄 重置</button>
-    <button class="btn btn-primary" onclick="applyAnalysis()">🔍 确定</button>
   </div>
   <div class="data-table-wrap"><h3>一、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>标签</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
   <div class="data-table-wrap"><h3>二、责任方分析</h3><div class="table-scroll"><table><thead><tr><th>责任方</th><th>工单数</th><th>占比</th><th>售后总量</th></tr></thead><tbody id="analysisResp"></tbody></table></div></div>
@@ -326,7 +323,6 @@ tbody tr:hover{background:#f8f9ff}
     <label>SKU:</label><input type="text" id="dt-sku" placeholder="搜索SKU...">
     <label>状态:</label><select id="dt-status"><option value="">全部</option></select>
     <button class="btn btn-outline" onclick="resetDetail()">🔄 重置</button>
-    <button class="btn btn-primary" onclick="applyDetail()">🔍 确定</button>
   </div>
   <div class="data-table-wrap">
     <h3>工单明细（最多显示前500条）</h3>
@@ -1976,6 +1972,39 @@ document.getElementById('loginModal').addEventListener('click', function(e) {
   if (e.target === this) this.classList.remove('show');
 });
 
+// ========== AUTO-REFRESH (无"确定"按钮，输入即刷新) ==========
+var _debounceTimers = {};
+function _debounce(key, fn, delay) {
+  return function() {
+    var args = arguments;
+    clearTimeout(_debounceTimers[key]);
+    _debounceTimers[key] = setTimeout(function() { fn.apply(null, args); }, delay);
+  };
+}
+
+function setupAutoRefresh() {
+  var el;
+  // Overview
+  el = document.getElementById('ov-start');    if (el) el.addEventListener('change', applyOverview);
+  el = document.getElementById('ov-end');      if (el) el.addEventListener('change', applyOverview);
+  el = document.getElementById('ov-granularity'); if (el) el.addEventListener('change', applyOverview);
+  el = document.getElementById('ov-sku');       if (el) el.addEventListener('input', _debounce('ov-sku', applyOverview, 400));
+  // Charts
+  el = document.getElementById('ch-start');    if (el) el.addEventListener('change', applyCharts);
+  el = document.getElementById('ch-end');      if (el) el.addEventListener('change', applyCharts);
+  el = document.getElementById('ch-granularity'); if (el) el.addEventListener('change', applyCharts);
+  el = document.getElementById('ch-sku');       if (el) el.addEventListener('input', _debounce('ch-sku', applyCharts, 400));
+  // Analysis
+  el = document.getElementById('an-start');     if (el) el.addEventListener('change', applyAnalysis);
+  el = document.getElementById('an-end');       if (el) el.addEventListener('change', applyAnalysis);
+  el = document.getElementById('an-sku');       if (el) el.addEventListener('input', _debounce('an-sku', applyAnalysis, 400));
+  // Detail
+  el = document.getElementById('dt-start');     if (el) el.addEventListener('change', applyDetail);
+  el = document.getElementById('dt-end');       if (el) el.addEventListener('change', applyDetail);
+  el = document.getElementById('dt-sku');       if (el) el.addEventListener('input', _debounce('dt-sku', applyDetail, 400));
+  el = document.getElementById('dt-status');     if (el) el.addEventListener('change', applyDetail);
+}
+
 // ========== INIT ==========
 document.addEventListener('DOMContentLoaded', function() {
   try {
@@ -1988,6 +2017,7 @@ document.addEventListener('DOMContentLoaded', function() {
     checkLogin();
     updateLoginUI();
     showUploadTab(gLoggedIn);
+    setupAutoRefresh();
 
     // Show loading overlay
     let overlay = document.createElement('div');
