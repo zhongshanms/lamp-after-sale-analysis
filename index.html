@@ -490,7 +490,7 @@ async function loadData() {
     let cached = await db.cache.get('compact_data');
     if (cached && cached.data) {
       let json = JSON.parse(cached.data);
-      initData(json);
+      await initData(json);
       console.log('Loaded from IndexedDB cache (instant)');
       // Background: check if newer version exists online
       checkVersionInBackground(json);
@@ -524,7 +524,7 @@ async function loadData() {
         // Cache for next visit (background)
         cacheDataInBackground(json);
 
-        initData(json);
+        await initData(json);
         console.log('Data loaded from URL [' + i + '] #' + attempt);
         return; // Success
       } catch(e) {
@@ -547,7 +547,7 @@ async function loadData() {
     let cached = await db.cache.get('compact_data');
     if (cached && cached.data) {
       let json = JSON.parse(cached.data);
-      initData(json);
+      await initData(json);
       showToast('网络不可用，已使用本地缓存数据（可能不是最新）', 'warn');
       console.log('Fallback: loaded from IndexedDB cache as last resort');
       return;
@@ -663,11 +663,82 @@ function expandCompact(json) {
   return result;
 }
 
-function initData(json) {
+// Merge uploaded data from IndexedDB UploadStore into gAfterSale/gSales
+async function mergeUploadedData() {
+  try {
+    let db = getUploadDB();
+    let allRecords = await db.records.toArray();
+    if (!allRecords || allRecords.length === 0) return;
+
+    // Build existing key sets for dedup
+    let existingAfterKeys = new Set(gAfterSale.map(function(r) { return r.ticket_id; }).filter(Boolean));
+    let existingSalesKeys = new Set(gSales.map(function(r) { return (r.date_date||r.date||'') + '||' + (r.sku||''); }));
+
+    var afterAdded = 0, salesAdded = 0;
+    allRecords.forEach(function(rec) {
+      var row = rec.data;
+      if (rec.type === 'after') {
+        var tid = row.ticket_id || row['工单号'] || row['Ticket ID'] || '';
+        if (!tid || existingAfterKeys.has(tid)) return;
+        existingAfterKeys.add(tid);
+        gAfterSale.push({
+          ticket_id: tid,
+          after_sale_type: row.after_sale_type || row['售后类型'] || row['After Sale Type'] || '',
+          product_name: row.product_name || row['商品名称'] || row['Product Name'] || '',
+          sku: row.sku || row['SKU'] || '',
+          reason: row.reason || row['售后原因'] || row['Reason'] || '',
+          refund_status: row.refund_status || row['退款状态'] || row['Refund Status'] || '',
+          order_amount: parseFloat(row.order_amount || row['订单金额'] || 0) || 0,
+          refund_amount: parseFloat(row.refund_amount || row['退款金额'] || row['Refund Amount'] || 0) || 0,
+          return_qty: parseInt(row.return_qty || row['退货数量'] || row['Return Qty'] || 1) || 1,
+          tag: row.tag || row['标签'] || row['Tag'] || '',
+          create_time: row.create_time || row.create_date || row['创建时间'] || row['Create Date'] || '',
+          create_date: row.create_date || row.create_time || row['创建时间'] || row['Create Date'] || '',
+          order_time: row.order_time || row['下单时间'] || '',
+          order_id: row.order_id || row['订单号'] || '',
+          responsibility: row.responsibility || row.resp_party || row['责任方'] || row['Responsibility'] || '',
+          year: rec.year || 0,
+        });
+        afterAdded++;
+      } else {
+        var d = row.date || row['日期'] || row['Date'] || '';
+        var s = row.sku || row['SKU'] || '';
+        var uk = d + '||' + s;
+        if (!d || !s || existingSalesKeys.has(uk)) return;
+        existingSalesKeys.add(uk);
+        gSales.push({
+          date: d, date_date: d, sku: s,
+          product_name: row.product_name || row['商品名称'] || row['Product Name'] || '',
+          title: row.title || row['标题'] || '',
+          attribute: row.attribute || row['属性'] || '',
+          shop: row.shop || row['店铺'] || '',
+          platform: row.platform || row['平台'] || '',
+          sales_qty: parseInt(row.sales_qty || row['销量'] || row['Sales Qty'] || 0) || 0,
+          order_qty: parseInt(row.order_qty || row['订单量'] || row['Order Qty'] || 1) || 1,
+          revenue: parseFloat(row.revenue || row['收入'] || 0) || 0,
+          formatted_revenue: '', year: rec.year || 0,
+          refund_amount: 0, return_qty: 0, refund_status: '', reason: '', tag: '', after_sale_type: '',
+        });
+        salesAdded++;
+      }
+    });
+
+    if (afterAdded > 0 || salesAdded > 0) {
+      console.log('Merged uploaded data: +' + afterAdded + ' after-sale, +' + salesAdded + ' sales');
+    }
+  } catch(e) {
+    console.warn('mergeUploadedData failed (non-critical):', e);
+  }
+}
+
+async function initData(json) {
   json = expandCompact(json);
   gData = json;
   gAfterSale = json.after_sale_records || [];
   gSales = json.sales_records || [];
+
+  // Merge uploaded data from IndexedDB (if any)
+  await mergeUploadedData();
 
   // Update status
   document.getElementById('status-after').textContent = `售后: ${fmtNum(gAfterSale.length)}条`;
@@ -1228,12 +1299,23 @@ function applyDetailWithParams() {
 
 // ========== DB STATUS ==========
 function refreshDBStatus() {
-  let summary = gData?.year_summary || {};
-  let years = Object.keys(summary).sort();
+  // Count from actual gAfterSale/gSales (includes uploaded data after merge)
+  let yearMap = {};
+  gAfterSale.forEach(function(r) {
+    let y = r.create_date ? r.create_date.substring(0,4) : (r.year ? String(r.year) : '未知');
+    if (!yearMap[y]) yearMap[y] = {after:0, sales:0};
+    yearMap[y].after++;
+  });
+  gSales.forEach(function(r) {
+    let y = r.date_date ? r.date_date.substring(0,4) : (r.year ? String(r.year) : '未知');
+    if (!yearMap[y]) yearMap[y] = {after:0, sales:0};
+    yearMap[y].sales++;
+  });
+  let years = Object.keys(yearMap).sort();
   let tbody = document.getElementById('dbStatusBody');
-  tbody.innerHTML = years.map(y => {
-    let s = summary[y];
-    return `<tr><td>${y}</td><td>${fmtNum(s.after_sale_count)}</td><td>${fmtNum(s.sales_count)}</td><td>${fmtNum((s.after_sale_count||0)+(s.sales_count||0))}</td></tr>`;
+  tbody.innerHTML = years.map(function(y) {
+    var s = yearMap[y];
+    return '<tr><td>' + y + '</td><td>' + fmtNum(s.after) + '</td><td>' + fmtNum(s.sales) + '</td><td>' + fmtNum((s.after||0)+(s.sales||0)) + '</td></tr>';
   }).join('');
 }
 
@@ -1352,6 +1434,16 @@ function processUpload(file, type) {
         if (skipped > 0) msg += `，跳过 ${skipped} 条（已存在）`;
         showToast(msg, 'success');
         statusEl.textContent = `累计: ${totalStored} 条 | 本次新增: ${newRecords.length} 条，跳过重复: ${skipped} 条`;
+
+        // Refresh page data with newly uploaded records
+        if (newRecords.length > 0 && gAfterSale.length > 0) {
+          await mergeUploadedData();
+          refreshOverview();
+          refreshCharts();
+          refreshAnalysis();
+          refreshDetail();
+          refreshDBStatus();
+        }
       } catch(err) {
         if (err.name === 'QuotaExceededError' || err.message.includes('quota')) {
           statusEl.textContent = '存储空间不足！数据已就绪但未能保存到浏览器';
