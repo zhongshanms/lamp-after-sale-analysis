@@ -22,8 +22,10 @@ Thumbs.db
 *.xlsx
 *.xls
 
-# Large data (optional - keep if needed)
-# data/after-sale-data.json
+# Large data (optional - keep compact version in repo)
+data/after-sale-data.json
 
 # Node
 node_modules/
+package.json
+package-lock.json
