@@ -1499,70 +1499,99 @@ async function resetUploadData() {
   }
 
   try {
-    showToast('正在清理数据，请稍候...', 'info');
+    showToast('步骤1/5: 关闭数据库连接...', 'info');
+    console.log('[RESET] Step 1: Closing DB connections');
 
     // ── 步骤1: 关闭所有 Dexie 连接 ──
     if (uploadDB) { try { uploadDB.close(); } catch(e) {} uploadDB = null; }
     if (dataCacheDB) { try { dataCacheDB.close(); } catch(e) {} dataCacheDB = null; }
+    console.log('[RESET] Connections closed. UploadStore=' + !!uploadDB + ', DataCache=' + !!dataCacheDB);
 
-    // ── 步骤2: 用原生 IndexedDB API 彻底删除数据库 ──
+    // ── 步骤2: 原生 IndexedDB API 删除 ──
+    showToast('步骤2/5: 删除数据库...', 'info');
+    console.log('[RESET] Step 2: Deleting IndexedDB databases');
+
     function nativeDeleteDB(dbName) {
       return new Promise(function(resolve) {
         var req = indexedDB.deleteDatabase(dbName);
         var resolved = false;
 
         req.onsuccess = function() {
-          if (!resolved) { resolved = true; console.log('IndexedDB [' + dbName + '] deleted'); resolve(true); }
+          if (!resolved) { resolved = true; console.log('[RESET] DB deleted: ' + dbName); resolve(true); }
         };
         req.onerror = function() {
-          if (!resolved) { resolved = true; console.warn('IndexedDB [' + dbName + '] delete error:', req.error); resolve(false); }
+          if (!resolved) { resolved = true; console.warn('[RESET] DB delete error: ' + dbName, req.error); resolve(false); }
         };
-        // onblocked: 浏览器会等所有连接关闭后再删除，这里只需等待 onsuccess
         req.onblocked = function() {
-          console.warn('IndexedDB [' + dbName + '] deletion blocked, waiting for connections to close...');
+          console.warn('[RESET] DB blocked: ' + dbName);
         };
 
-        // 超时保护：8秒后强制继续（onblocked 情况下浏览器最终会触发 onsuccess）
         setTimeout(function() {
-          if (!resolved) { resolved = true; console.warn('IndexedDB [' + dbName + '] delete timeout, continuing...'); resolve(false); }
+          if (!resolved) { resolved = true; console.warn('[RESET] DB delete timeout: ' + dbName); resolve(false); }
         }, 8000);
       });
     }
 
-    await nativeDeleteDB('UploadStore');
-    await nativeDeleteDB('DataCache');
+    var del1 = await nativeDeleteDB('UploadStore');
+    var del2 = await nativeDeleteDB('DataCache');
+    console.log('[RESET] Delete results: UploadStore=' + del1 + ', DataCache=' + del2);
 
-    // ── 步骤3: 额外保险 —— 再次 clear 表（如果数据库被重建了）──
+    // ── 步骤3: 兜底 clear（防止浏览器重建了空库）──
+    showToast('步骤3/5: 清理残留数据...', 'info');
+    console.log('[RESET] Step 3: Fallback clear');
+
     try {
-      let uDB = new Dexie('UploadStore');
+      var uDB = new Dexie('UploadStore');
       uDB.version(1).stores({ records: '++id,type,year' });
+      var countBefore = await uDB.records.count();
       await uDB.records.clear();
+      var countAfter = await uDB.records.count();
       uDB.close();
-    } catch(e) { console.warn('UploadStore clear fallback failed (OK):', e.message); }
+      console.log('[RESET] UploadStore fallback clear: before=' + countBefore + ', after=' + countAfter);
+    } catch(e) { console.log('[RESET] UploadStore fallback: ' + e.message); }
 
     try {
-      let dDB = new Dexie('DataCache');
+      var dDB = new Dexie('DataCache');
       dDB.version(1).stores({ cache: 'key' });
+      var cBefore = await dDB.cache.count();
       await dDB.cache.clear();
+      var cAfter = await dDB.cache.count();
       dDB.close();
-    } catch(e) { console.warn('DataCache clear fallback failed (OK):', e.message); }
+      console.log('[RESET] DataCache fallback clear: before=' + cBefore + ', after=' + cAfter);
+    } catch(e) { console.log('[RESET] DataCache fallback: ' + e.message); }
 
-    // ── 步骤4: 写入重置标记到 sessionStorage，页面加载时跳过 merge ──
+    // ── 步骤4: 写入重置标记 ──
+    showToast('步骤4/5: 写入重置标记...', 'info');
     sessionStorage.setItem('data_reset_pending', '1');
+    console.log('[RESET] Reset flag set in sessionStorage');
 
     // ── 步骤5: 清除 localStorage 元数据 ──
+    showToast('步骤5/5: 清除元数据并刷新...', 'info');
     var keys = Object.keys(localStorage);
+    var removedCount = 0;
     for (var i = 0; i < keys.length; i++) {
       var k = keys[i];
       if (k.startsWith('upload_') || k.startsWith('supply_') || k.startsWith('sale_')) {
         localStorage.removeItem(k);
+        removedCount++;
       }
     }
+    console.log('[RESET] Removed ' + removedCount + ' localStorage items');
 
-    showToast('数据已重置，正在刷新页面...', 'success');
-    setTimeout(function() { window.location.href = window.location.href.split('?')[0]; }, 1200);
+    // 最终确认：列出当前所有 IndexedDB 数据库名称
+    var dbNames = await indexedDB.databases();
+    console.log('[RESET] All remaining databases:', dbNames.map(function(d){return d.name;}));
+
+    showToast('✅ 重置完成！正在刷新页面...', 'success');
+    console.log('[RESET] All steps done, reloading page...');
+
+    setTimeout(function() {
+      window.location.href = window.location.href.split('?')[0] + '?t=' + Date.now();
+    }, 1000);
+
   } catch(e) {
-    console.error('重置数据异常:', e);
+    console.error('[RESET] EXCEPTION:', e.stack || e.message);
+    alert('重置过程出错:\n\n' + e.message + '\n\n请按 F12 打开控制台查看详细日志，并将错误信息截图发送。');
     showToast('重置失败: ' + e.message, 'error');
   }
 }
