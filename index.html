@@ -114,6 +114,18 @@ tbody tr:hover{background:#f8f9ff}
 .status-table{margin-top:20px}
 .status-table table{margin-top:10px}
 
+/* ========== Debug Panel ========== */
+.debug-panel{margin-top:16px;background:#1e1e1e;color:#d4d4d4;border-radius:8px;padding:12px 16px;font-family:"Cascadia Code","Fira Code",Consolas,monospace;font-size:12px;line-height:1.6;max-height:200px;overflow-y:auto;display:none}
+.debug-panel.show{display:block}
+.debug-panel .entry{margin:2px 0;padding:2px 8px;border-left:3px solid transparent}
+.debug-panel .entry.info{border-left-color:#569cd6}
+.debug-panel .entry.success{border-left-color:#4ec9b0;color:#4ec9b0}
+.debug-panel .entry.warn{border-left-color:#dcdcaa;color:#dcdcaa}
+.debug-panel .entry.error{border-left-color:#f44747;color:#f44747}
+.debug-panel .entry .time{color:#808080;margin-right:8px}
+.debug-panel-toggle{font-size:12px;color:#999;cursor:pointer;margin-top:8px;display:inline-block;user-select:none}
+.debug-panel-toggle:hover{color:var(--primary)}
+
 /* ========== Responsive ========== */
 @media(max-width:768px){
   .stats-cards{grid-template-columns:repeat(2,1fr)}
@@ -237,6 +249,8 @@ tbody tr:hover{background:#f8f9ff}
       <span class="text-muted" style="margin-left:8px;font-size:var(--font-sm)">清空所有数据（含预置数据），页面变为空白后可重新上传</span>
     </div>
   </div>
+  <div class="debug-panel-toggle" id="debugToggle" onclick="toggleDebug()" style="display:none">🔧 显示诊断日志</div>
+  <div class="debug-panel" id="debugPanel"><div class="entry info"><span class="time">--:--</span>诊断日志就绪，上传文件后显示合并结果</div></div>
 </div>
 
 <!-- Tab: Overview -->
@@ -402,6 +416,41 @@ function fmtMoney(v) { return v != null ? '¥' + Number(v).toFixed(2).replace(/\
 function fmtNum(v) { return v != null ? Number(v).toLocaleString() : '0'; }
 function fmtPct(v, total) { return total > 0 ? (v/total*100).toFixed(1) + '%' : '0%'; }
 
+// ===== Debug Panel Helpers =====
+var APP_VERSION = '2026-06-13-v2'; // bump on each deploy to detect stale cache
+console.log('%c[APP] Version: ' + APP_VERSION, 'color:#4ec9b0;font-weight:bold');
+window.__debugLines = [];
+function debugLog(msg, level) {
+  level = level || 'info';
+  var now = new Date();
+  var ts = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+  var line = '<div class="entry ' + level + '"><span class="time">' + ts + '</span>' + msg + '</div>';
+  window.__debugLines.push(line);
+  // Keep last 50 entries
+  if (window.__debugLines.length > 50) window.__debugLines.shift();
+  // Update panel if visible
+  var panel = document.getElementById('debugPanel');
+  if (panel) {
+    panel.innerHTML = window.__debugLines.join('');
+    panel.scrollTop = panel.scrollHeight;
+  }
+  // Show toggle if hidden
+  var toggle = document.getElementById('debugToggle');
+  if (toggle && toggle.style.display === 'none') toggle.style.display = 'inline-block';
+}
+function toggleDebug() {
+  var panel = document.getElementById('debugPanel');
+  var toggle = document.getElementById('debugToggle');
+  if (panel) {
+    panel.classList.toggle('show');
+    toggle.textContent = panel.classList.contains('show') ? '🔧 隐藏诊断日志' : '🔧 显示诊断日志';
+    if (panel.classList.contains('show')) panel.scrollTop = panel.scrollHeight;
+  }
+}
+// Show version in debug
+debugLog('App version: ' + APP_VERSION + ' (check: if page shows old UI, hard-refresh Ctrl+F5)');
+debugLog('Status: gAfterSale=???, gSales=???, UploadDB=??? (will update on upload)');
+
 function showToast(msg, type='') {
   let t = document.getElementById('toast');
   t.textContent = msg;
@@ -513,6 +562,7 @@ async function loadData() {
       let json = JSON.parse(cached.data);
       await initData(json);
       console.log('Loaded from IndexedDB cache (instant)');
+      debugLog('数据来源: IndexedDB 缓存 (即时)', 'success');
       // Background: check if newer version exists online
       checkVersionInBackground(json);
       return; // Success — instant!
@@ -547,6 +597,7 @@ async function loadData() {
 
         await initData(json);
         console.log('Data loaded from URL [' + i + '] #' + attempt);
+        debugLog('数据来源: 网络下载 (' + urls[i] + ')', 'success');
         return; // Success
       } catch(e) {
         console.warn('URL [' + i + '] #' + attempt + ' failed:', e.message);
@@ -700,15 +751,18 @@ async function mergeUploadedData() {
 
   console.log('[MERGE] mergeUploadedData: starting...');
   console.log('[MERGE]   gAfterSale before:', gAfterSale.length, '  gSales before:', gSales.length);
+  debugLog('mergeUploadedData 开始... gAfterSale=' + gAfterSale.length + ' gSales=' + gSales.length);
 
   try {
     let db = getUploadDB();
     console.log('[MERGE]   UploadDB ready, fetching all records...');
     let allRecords = await db.records.toArray();
     console.log('[MERGE]   UploadDB records fetched:', allRecords ? allRecords.length : 0);
+    debugLog('UploadDB 读取: ' + (allRecords ? allRecords.length : 0) + ' 条记录');
 
     if (!allRecords || allRecords.length === 0) {
       console.log('[MERGE]   UploadDB is empty, nothing to merge');
+      debugLog('UploadDB 为空，无需合并', 'warn');
       return;
     }
 
@@ -801,6 +855,10 @@ async function mergeUploadedData() {
     if (otherType > 0) console.log('[MERGE]   Other type records: ' + otherType);
     console.log('[MERGE]   gAfterSale after: ' + gAfterSale.length + ', gSales after: ' + gSales.length);
 
+    var mergeSummary = '售后: +' + afterAdded + ' 新增, ' + afterSkipped + ' 跳过, ' + afterNoKey + ' 无key | 销量: +' + salesAdded + ' 新增, ' + salesSkipped + ' 跳过, ' + salesNoKey + ' 无key';
+    debugLog('合并结果: gAfterSale=' + gAfterSale.length + ' gSales=' + gSales.length, (afterAdded + salesAdded > 0) ? 'success' : 'warn');
+    debugLog('  ' + mergeSummary);
+
     if (afterAdded > 0 || salesAdded > 0) {
       console.log('[MERGE] Merged uploaded data: +' + afterAdded + ' after-sale, +' + salesAdded + ' sales');
 
@@ -809,13 +867,18 @@ async function mergeUploadedData() {
         var cacheDB = getDataCacheDB();
         await cacheDB.cache.delete('compact_data');
         console.log('[MERGE] DataCache cleared (will re-download on next visit)');
+        debugLog('DataCache 已清除 (下次打开会重新下载)', 'success');
       } catch(ec) {
         console.warn('[MERGE] DataCache clear failed:', ec);
+        debugLog('DataCache 清除失败: ' + ec, 'error');
       }
+    } else {
+      debugLog('⚠ 无新增记录！可能全部重复，或数据格式不匹配', 'warn');
     }
   } catch(e) {
     console.error('[MERGE] mergeUploadedData FAILED:', e);
     console.error('[MERGE] Error stack:', e.stack);
+    debugLog('合并失败！' + String(e.message || e).substring(0, 120), 'error');
     showToast('数据合并出错: ' + String(e.message || e).substring(0, 80), 'error');
   }
 }
@@ -825,6 +888,7 @@ async function initData(json) {
   gData = json;
   gAfterSale = json.after_sale_records || [];
   gSales = json.sales_records || [];
+  debugLog('initData: 售后=' + gAfterSale.length + ' 销量=' + gSales.length + ' (来自JSON)', 'info');
 
   // Merge uploaded data from IndexedDB (if any)
   await mergeUploadedData();
@@ -1450,6 +1514,14 @@ function processUpload(file, type) {
     showToast('请上传 .xlsx 或 .xls 文件', 'error');
     return;
   }
+  // Auto-show debug panel on upload
+  var panel = document.getElementById('debugPanel');
+  var toggle = document.getElementById('debugToggle');
+  if (panel && !panel.classList.contains('show')) {
+    panel.classList.add('show');
+    if (toggle) toggle.textContent = '🔧 隐藏诊断日志';
+  }
+  debugLog('开始上传: ' + file.name + ' (type=' + type + ')');
   let statusEl = document.getElementById(type === 'after' ? 'uploadAfterStatus' : 'uploadSalesStatus');
   statusEl.textContent = '正在解析...';
 
@@ -1527,16 +1599,19 @@ function processUpload(file, type) {
         // Refresh page data with newly uploaded records
         if (newRecords.length > 0) {
           console.log('[UPLOAD] Calling mergeUploadedData...');
+          debugLog('开始合并上传数据到内存... (' + type + ':' + newRecords.length + '条新记录)');
           await mergeUploadedData();
           // Update status bar
           document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
           document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
+          debugLog('状态栏已更新: 售后=' + gAfterSale.length + ' 销量=' + gSales.length, 'success');
           refreshOverview();
           refreshCharts();
           refreshAnalysis();
           refreshDetail();
           refreshDBStatus();
           console.log('[UPLOAD] All views refreshed after merge');
+          debugLog('所有视图已刷新', 'success');
         }
       } catch(err) {
         if (err.name === 'QuotaExceededError' || err.message.includes('quota')) {
