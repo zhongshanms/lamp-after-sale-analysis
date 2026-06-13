@@ -874,19 +874,12 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
             borderRadius: 4,
             order: 1,
           },
-          // 售后订单量 — 折线图（右，图例右侧）
+          // 售后订单量 — 柱状图
           {
             label: '售后订单量',
             data: afterVals,
-            type: 'line',
-            borderColor: '#e15759',
-            backgroundColor: 'rgba(225,87,89,0.15)',
-            fill: false,
-            tension: 0.3,
-            pointRadius: 4,
-            pointBackgroundColor: '#e15759',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
+            backgroundColor: 'rgba(225,87,89,0.8)',
+            borderRadius: 4,
             order: 2,
           },
         ]
@@ -919,15 +912,15 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
       plugins: [{
         id: 'afterRateLabels',
         afterDatasetsDraw(chart) {
-          // 在折线数据点上方标注售后率
-          let lineMeta = chart.getDatasetMeta(1); // 折线（售后订单量，位于索引 1）
-          lineMeta.data.forEach((point, i) => {
+          // 在售后订单量柱状图上方标注售后率
+          let barMeta = chart.getDatasetMeta(1); // 售后订单量柱状图（索引 1）
+          barMeta.data.forEach((bar, i) => {
             if (salesVals[i] > 0) {
               let rate = (afterVals[i] / salesVals[i] * 100).toFixed(1);
               chart.ctx.fillStyle = '#e15759';
               chart.ctx.font = 'bold 11px sans-serif';
               chart.ctx.textAlign = 'center';
-              chart.ctx.fillText(rate + '%', point.x, point.y - 12);
+              chart.ctx.fillText(rate + '%', bar.x, bar.y - 12);
             }
           });
         }
