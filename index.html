@@ -665,6 +665,18 @@ function expandCompact(json) {
 
 // Merge uploaded data from IndexedDB UploadStore into gAfterSale/gSales
 async function mergeUploadedData() {
+  // ── 如果刚执行过重置，跳过合并并清除标记 ──
+  if (sessionStorage.getItem('data_reset_pending') === '1') {
+    console.log('mergeUploadedData: skip (data reset pending)');
+    sessionStorage.removeItem('data_reset_pending');
+    // 额外保险：再清一次 UploadStore
+    try {
+      let db = getUploadDB();
+      await db.records.clear();
+    } catch(e) {}
+    return;
+  }
+
   try {
     let db = getUploadDB();
     let allRecords = await db.records.toArray();
@@ -1487,28 +1499,74 @@ async function resetUploadData() {
   }
 
   try {
-    // Close and completely delete UploadStore database
-    if (uploadDB) { uploadDB.close(); uploadDB = null; }
-    await Dexie.delete('UploadStore');
-    console.log('UploadStore database deleted');
+    showToast('正在清理数据，请稍候...', 'info');
 
-    // Close and completely delete DataCache database
-    if (dataCacheDB) { dataCacheDB.close(); dataCacheDB = null; }
-    await Dexie.delete('DataCache');
-    console.log('DataCache database deleted');
+    // ── 步骤1: 关闭所有 Dexie 连接 ──
+    if (uploadDB) { try { uploadDB.close(); } catch(e) {} uploadDB = null; }
+    if (dataCacheDB) { try { dataCacheDB.close(); } catch(e) {} dataCacheDB = null; }
 
-    // Clear localStorage metadata
-    let keys = Object.keys(localStorage);
-    keys.forEach(function(k) {
+    // ── 步骤2: 用原生 IndexedDB API 彻底删除数据库（Dexie.delete 可能静默失败）──
+    async function nativeDeleteDB(dbName) {
+      return new Promise(function(resolve, reject) {
+        var req = indexedDB.deleteDatabase(dbName);
+        var done = false;
+        req.onsuccess = function() {
+          if (!done) { done = true; console.log('IndexedDB [' + dbName + '] deleted'); resolve(true); }
+        };
+        req.onerror = function(e) {
+          if (!done) { done = true; console.warn('IndexedDB [' + dbName + '] delete error:', e.target.error); resolve(false); }
+        };
+        req.onblocked = function() {
+          console.warn('IndexedDB [' + dbName + '] deletion blocked (open connections exist), retrying...');
+          // 延迟后重试一次
+          setTimeout(function() {
+            if (done) return;
+            var req2 = indexedDB.deleteDatabase(dbName);
+            req2.onsuccess = function() { if (!done) { done = true; resolve(true); } };
+            req2.onerror = function() { if (!done) { done = true; resolve(false); } };
+          }, 800);
+        };
+        // 超时保护：5秒后强制 resolve
+        setTimeout(function() {
+          if (!done) { done = true; console.warn('IndexedDB [' + dbName + '] delete timeout, continuing anyway'); resolve(false); }
+        }, 5000);
+      });
+    }
+
+    await nativeDeleteDB('UploadStore');
+    await nativeDeleteDB('DataCache');
+
+    // ── 步骤3: 额外保险 —— 再次 clear 表（如果数据库被重建了）──
+    try {
+      let uDB = new Dexie('UploadStore');
+      uDB.version(1).stores({ records: '++id,type,year' });
+      await uDB.records.clear();
+      uDB.close();
+    } catch(e) { console.warn('UploadStore clear fallback failed (OK):', e.message); }
+
+    try {
+      let dDB = new Dexie('DataCache');
+      dDB.version(1).stores({ cache: 'key' });
+      await dDB.cache.clear();
+      dDB.close();
+    } catch(e) { console.warn('DataCache clear fallback failed (OK):', e.message); }
+
+    // ── 步骤4: 写入重置标记到 sessionStorage，页面加载时跳过 merge ──
+    sessionStorage.setItem('data_reset_pending', '1');
+
+    // ── 步骤5: 清除 localStorage 元数据 ──
+    var keys = Object.keys(localStorage);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
       if (k.startsWith('upload_') || k.startsWith('supply_') || k.startsWith('sale_')) {
         localStorage.removeItem(k);
       }
-    });
+    }
 
-    showToast('数据已重置，正在刷新...', 'success');
-    setTimeout(function() { window.location.reload(true); }, 1500);
+    showToast('数据已重置，正在刷新页面...', 'success');
+    setTimeout(function() { window.location.href = window.location.href.split('?')[0]; }, 1200);
   } catch(e) {
-    console.error('重置数据失败:', e);
+    console.error('重置数据异常:', e);
     showToast('重置失败: ' + e.message, 'error');
   }
 }
