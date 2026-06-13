@@ -420,23 +420,49 @@ function fmtPct(v, total) { return total > 0 ? (v/total*100).toFixed(1) + '%' : 
 var APP_VERSION = '2026-06-13-v2'; // bump on each deploy to detect stale cache
 console.log('%c[APP] Version: ' + APP_VERSION, 'color:#4ec9b0;font-weight:bold');
 window.__debugLines = [];
+window.__mergeCallCount = 0;
+window.__mergeStatusBanner = ''; // persistent banner for latest merge result
 function debugLog(msg, level) {
   level = level || 'info';
   var now = new Date();
   var ts = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
   var line = '<div class="entry ' + level + '"><span class="time">' + ts + '</span>' + msg + '</div>';
   window.__debugLines.push(line);
-  // Keep last 50 entries
-  if (window.__debugLines.length > 50) window.__debugLines.shift();
+  // Keep last 200 entries (was 50, increased for merge debugging)
+  if (window.__debugLines.length > 200) window.__debugLines.shift();
   // Update panel if visible
   var panel = document.getElementById('debugPanel');
   if (panel) {
-    panel.innerHTML = window.__debugLines.join('');
+    // Prepend persistent merge status banner if set
+    var bannerHtml = window.__mergeStatusBanner || '';
+    panel.innerHTML = bannerHtml + window.__debugLines.slice(-100).join('');
     panel.scrollTop = panel.scrollHeight;
   }
   // Show toggle if hidden
   var toggle = document.getElementById('debugToggle');
   if (toggle && toggle.style.display === 'none') toggle.style.display = 'inline-block';
+}
+function setMergeBanner(afterAdded, afterSkipped, afterNoKey, salesAdded, salesSkipped, salesNoKey, otherType, totalRecords, callNum) {
+  var totalAdded = afterAdded + salesAdded;
+  var totalSkipped = afterSkipped + salesSkipped;
+  var totalNoKey = afterNoKey + salesNoKey;
+  var color = totalAdded > 0 ? '#4ec9b0' : (totalNoKey > 0 ? '#dcdcaa' : '#f44747');
+  var icon = totalAdded > 0 ? '✅' : (totalNoKey > 0 ? '⚠️' : '❌');
+  window.__mergeStatusBanner =
+    '<div style="background:#252526;border-bottom:2px solid ' + color + ';padding:6px 16px;margin:-12px -16px 8px;font-size:11px;text-align:center">' +
+    icon + ' Merge #' + callNum + ': ' + totalRecords + '条→ +' + totalAdded +
+    ' | 跳过' + totalSkipped + ' | 无key' + totalNoKey + (otherType > 0 ? ' | 其他' + otherType : '') +
+    ' | 最终: ' + gAfterSale.length + '+' + gSales.length + '条' +
+    '</div>';
+}
+function toggleDebug() {
+  var panel = document.getElementById('debugPanel');
+  var toggle = document.getElementById('debugToggle');
+  if (panel) {
+    panel.classList.toggle('show');
+    toggle.textContent = panel.classList.contains('show') ? '🔧 隐藏诊断日志' : '🔧 显示诊断日志';
+    if (panel.classList.contains('show')) panel.scrollTop = panel.scrollHeight;
+  }
 }
 function toggleDebug() {
   var panel = document.getElementById('debugPanel');
@@ -751,18 +777,21 @@ async function mergeUploadedData() {
 
   console.log('[MERGE] mergeUploadedData: starting...');
   console.log('[MERGE]   gAfterSale before:', gAfterSale.length, '  gSales before:', gSales.length);
-  debugLog('mergeUploadedData 开始... gAfterSale=' + gAfterSale.length + ' gSales=' + gSales.length);
+  window.__mergeCallCount++;
+  var callNum = window.__mergeCallCount;
+  var callSource = (new Error().stack || '').includes('initData') ? 'initData(页面加载)' : 'processUpload(上传后)';
+  debugLog('[Merge#' + callNum + '] 开始 (' + callSource + ')  gAfterSale=' + gAfterSale.length + ' gSales=' + gSales.length);
 
   try {
     let db = getUploadDB();
     console.log('[MERGE]   UploadDB ready, fetching all records...');
     let allRecords = await db.records.toArray();
     console.log('[MERGE]   UploadDB records fetched:', allRecords ? allRecords.length : 0);
-    debugLog('UploadDB 读取: ' + (allRecords ? allRecords.length : 0) + ' 条记录');
+    debugLog('[Merge#' + callNum + '] UploadDB 读取: ' + (allRecords ? allRecords.length : 0) + ' 条记录');
 
     if (!allRecords || allRecords.length === 0) {
       console.log('[MERGE]   UploadDB is empty, nothing to merge');
-      debugLog('UploadDB 为空，无需合并', 'warn');
+      debugLog('[Merge#' + callNum + '] UploadDB 为空，无需合并', 'warn');
       return;
     }
 
@@ -795,6 +824,17 @@ async function mergeUploadedData() {
     var afterAdded = 0, afterSkipped = 0, afterNoKey = 0;
     var salesAdded = 0, salesSkipped = 0, salesNoKey = 0;
     var otherType = 0;
+    // Capture sample skipped keys for diagnosis (first 3 of each type)
+    var sampleSkippedAfter = [], sampleSkippedSales = [], sampleOtherTypes = [];
+
+    // Pre-count type distribution
+    var typeCounts = { after: 0, sales: 0, other: 0 };
+    allRecords.forEach(function(rec) {
+      if (rec.type === 'after') typeCounts.after++;
+      else if (rec.type === 'sales') typeCounts.sales++;
+      else typeCounts.other++;
+    });
+    debugLog('[Merge#' + callNum + '] 类型分布: after=' + typeCounts.after + ' sales=' + typeCounts.sales + ' other=' + typeCounts.other);
 
     allRecords.forEach(function(rec) {
       var row = rec.data;
@@ -803,7 +843,11 @@ async function mergeUploadedData() {
       if (rec.type === 'after') {
         var tid = row.ticket_id || row['工单号'] || row['Ticket ID'] || '';
         if (!tid) { afterNoKey++; return; }
-        if (existingAfterKeys.has(tid)) { afterSkipped++; return; }
+        if (existingAfterKeys.has(tid)) {
+          afterSkipped++;
+          if (sampleSkippedAfter.length < 5) sampleSkippedAfter.push(tid.substring(0, 30));
+          return;
+        }
         existingAfterKeys.add(tid);
         gAfterSale.push({
           ticket_id: tid,
@@ -829,7 +873,11 @@ async function mergeUploadedData() {
         var s = row.sku || row['SKU'] || '';
         var uk = d + '||' + s;
         if (!d || !s) { salesNoKey++; return; }
-        if (existingSalesKeys.has(uk)) { salesSkipped++; return; }
+        if (existingSalesKeys.has(uk)) {
+          salesSkipped++;
+          if (sampleSkippedSales.length < 5) sampleSkippedSales.push(uk.substring(0, 40));
+          return;
+        }
         existingSalesKeys.add(uk);
         gSales.push({
           date: d, date_date: d, sku: s,
@@ -847,6 +895,7 @@ async function mergeUploadedData() {
         salesAdded++;
       } else {
         otherType++;
+        if (sampleOtherTypes.length < 3) sampleOtherTypes.push('type="' + rec.type + '"');
       }
     });
 
@@ -854,6 +903,26 @@ async function mergeUploadedData() {
     console.log('[MERGE]   Sales:      +' + salesAdded + ' added, ' + salesSkipped + ' skipped, ' + salesNoKey + ' no-key');
     if (otherType > 0) console.log('[MERGE]   Other type records: ' + otherType);
     console.log('[MERGE]   gAfterSale after: ' + gAfterSale.length + ', gSales after: ' + gSales.length);
+
+    // ── Detailed debug output for diagnosis ──
+    debugLog('[Merge#' + callNum + '] 售后: +' + afterAdded + ' 新增 | ' + afterSkipped + ' 跳过 | ' + afterNoKey + ' 无key');
+    debugLog('[Merge#' + callNum + '] 销量: +' + salesAdded + ' 新增 | ' + salesSkipped + ' 跳过 | ' + salesNoKey + ' 无key');
+    if (otherType > 0) debugLog('[Merge#' + callNum + '] ⚠ 其他类型: ' + otherType + ' 条 (样本: ' + sampleOtherTypes.join(', ') + ')', 'warn');
+    if (sampleSkippedAfter.length > 0) {
+      debugLog('[Merge#' + callNum + '] 跳过售后样本(ticket_id): ' + sampleSkippedAfter.join(', '), 'warn');
+    }
+    if (sampleSkippedSales.length > 0) {
+      debugLog('[Merge#' + callNum + '] 跳过销量样本(date||sku): ' + sampleSkippedSales.join(', '), 'warn');
+    }
+
+    // ── Persistent merge status banner ──
+    setMergeBanner(afterAdded, afterSkipped, afterNoKey, salesAdded, salesSkipped, salesNoKey, otherType, allRecords.length, callNum);
+    // Refresh panel to show banner
+    var panel = document.getElementById('debugPanel');
+    if (panel && panel.classList.contains('show')) {
+      panel.innerHTML = (window.__mergeStatusBanner || '') + window.__debugLines.slice(-100).join('');
+      panel.scrollTop = panel.scrollHeight;
+    }
 
     var mergeSummary = '售后: +' + afterAdded + ' 新增, ' + afterSkipped + ' 跳过, ' + afterNoKey + ' 无key | 销量: +' + salesAdded + ' 新增, ' + salesSkipped + ' 跳过, ' + salesNoKey + ' 无key';
     debugLog('合并结果: gAfterSale=' + gAfterSale.length + ' gSales=' + gSales.length, (afterAdded + salesAdded > 0) ? 'success' : 'warn');
