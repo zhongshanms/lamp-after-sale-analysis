@@ -6,7 +6,7 @@
     python convert_export_to_compact.py <导出JSON文件路径>
     python convert_export_to_compact.py "C:/Users/DELL/Desktop/export.json"
 
-可直接拖拽 JSON 文件到 convert_and_push.bat 完成转换 + Git 推送。
+可直接拖拽 JSON 文件到 sync.bat 完成转换 + Git 推送。
 """
 
 import json, os, sys
