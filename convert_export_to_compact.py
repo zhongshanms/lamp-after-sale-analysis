@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""将浏览器导出的 JSON 转换为 compact 格式，生成统计数据，用于推送到 GitHub。"""
+"""将浏览器导出的 JSON 转换为 compact 格式，生成统计数据，用于推送到 GitHub。
 
-import json, os
+用法:
+    python convert_export_to_compact.py <导出JSON文件路径>
+    python convert_export_to_compact.py "C:/Users/DELL/Desktop/export.json"
+
+可直接拖拽 JSON 文件到 convert_and_push.bat 完成转换 + Git 推送。
+"""
+
+import json, os, sys
 from datetime import datetime
 from collections import defaultdict
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
-EXPORT_FILE = os.path.join(DATA_DIR, 'export-data-2026-06-13.json')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(SCRIPT_DIR, 'data')
 OUTPUT_COMPACT = os.path.join(DATA_DIR, 'after-sale-data-compact.json')
 OUTPUT_VERSION = os.path.join(DATA_DIR, 'version.json')
 
@@ -19,9 +26,13 @@ def safe_int(v, default=1):
     try: return int(float(v)) if v is not None else default
     except: return default
 
-def main():
-    print(f"读取: {EXPORT_FILE}")
-    with open(EXPORT_FILE, 'r', encoding='utf-8') as f:
+def main(export_file):
+    if not os.path.exists(export_file):
+        print(f"[错误] 文件不存在: {export_file}")
+        sys.exit(1)
+
+    print(f"读取: {export_file}")
+    with open(export_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
     records = data.get('after_sale_records', [])
@@ -205,11 +216,11 @@ def main():
     with open(OUTPUT_VERSION, 'w', encoding='utf-8') as f:
         json.dump(version, f, ensure_ascii=False, indent=2)
 
-    # ── 清理导出临时文件 ──
-    os.remove(EXPORT_FILE)
-    print(f"清理: {EXPORT_FILE}")
-
     print("\n✅ 转换完成！")
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) < 2:
+        print("用法: python convert_export_to_compact.py <导出JSON文件路径>")
+        print("示例: python convert_export_to_compact.py export-data-2026-06-13.json")
+        sys.exit(1)
+    main(sys.argv[1])
