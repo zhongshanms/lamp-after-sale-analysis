@@ -32,8 +32,12 @@ def main(export_file):
         sys.exit(1)
 
     print(f"读取: {export_file}")
+    print(f"  解析 JSON（大文件可能需要30秒+）...")
+    t0 = __import__('time').time()
     with open(export_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
+    t1 = __import__('time').time()
+    print(f"  JSON 解析耗时: {t1-t0:.1f} 秒")
 
     records = data.get('after_sale_records', [])
     sales = data.get('sales_records', [])
@@ -41,8 +45,11 @@ def main(export_file):
     print(f"  销量记录: {len(sales)} 条")
 
     # ── 生成售后 compact records ──
+    print("  转换售后工单 compact 格式...")
     ar = []
-    for r in records:
+    for i, r in enumerate(records):
+        if i > 0 and i % 2000 == 0:
+            print(f"    {i}/{len(records)} ...")
         ar.append({
             'tid': str(r.get('ticket_id', '') or ''),
             't': str(r.get('after_sale_type', '') or ''),
@@ -60,8 +67,11 @@ def main(export_file):
         })
 
     # ── 生成销量 compact records ──
+    print("  转换销量记录 compact 格式...")
     sr = []
-    for s in sales:
+    for i, s in enumerate(sales):
+        if i > 0 and i % 5000 == 0:
+            print(f"    {i}/{len(sales)} ...")
         sr.append({
             'd': str(s.get('date', '') or ''),
             'sku': str(s.get('sku', '') or ''),
@@ -74,6 +84,7 @@ def main(export_file):
         })
 
     # ── 统计 ──
+    print("  计算统计数据...")
     # after_sale_types
     type_count = defaultdict(int)
     for r in records:
@@ -219,8 +230,23 @@ def main(export_file):
     print("\n✅ 转换完成！")
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("用法: python convert_export_to_compact.py <导出JSON文件路径>")
-        print("示例: python convert_export_to_compact.py export-data-2026-06-13.json")
+    try:
+        if len(sys.argv) < 2:
+            print("用法: python convert_export_to_compact.py <导出JSON文件路径>")
+            print("示例: python convert_export_to_compact.py export.json")
+            sys.exit(1)
+
+        import time, traceback
+        t0 = time.time()
+        main(sys.argv[1])
+        elapsed = time.time() - t0
+        print(f"\n总耗时: {elapsed:.1f} 秒")
+
+    except Exception as e:
+        print(f"\n{'='*50}")
+        print(f"[FATAL] 转换失败!")
+        print(f"错误类型: {type(e).__name__}")
+        print(f"错误信息: {e}")
+        print(f"{'='*50}")
+        traceback.print_exc()
         sys.exit(1)
-    main(sys.argv[1])

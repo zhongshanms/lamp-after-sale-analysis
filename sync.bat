@@ -1,10 +1,18 @@
 @echo off
 title Lamp After-Sale Data Sync
 
+REM === Wrapper: ensures window never closes before user sees result ===
+call :main %*
+echo.
+pause
+exit /b %errorlevel%
+
+:main
 REM -- Hardcoded paths (most reliable in green shield environment) --
 set "WORKDIR=C:\Users\DELL\WorkBuddy\2026-06-13-11-49-58\lamp-after-sale-analysis"
 set "PYTHON=C:\Users\DELL\.workbuddy\binaries\python\versions\3.13.12\python.exe"
 set "CONVERT=%WORKDIR%\convert_export_to_compact.py"
+set "LOGFILE=%WORKDIR%\sync_log.txt"
 
 echo ============================================
 echo   Lamp After-Sale Data Sync Tool
@@ -15,15 +23,12 @@ if "%~1"=="" (
     echo [ERROR] Drag the JSON file onto this BAT icon!
     echo.
     echo How: hold the JSON file, drag to sync.bat, release.
-    echo.
-    pause
-    exit /b 1
+    goto :eof
 )
 
 if not exist "%~1" (
     echo [ERROR] File not found: %~1
-    pause
-    exit /b 1
+    goto :eof
 )
 
 echo Source: %~nx1
@@ -32,25 +37,27 @@ echo.
 
 REM -- Step 1: Copy file to working dir (bypass green shield encryption) --
 echo [1/4] Copying file to working directory...
-copy "%~1" "%WORKDIR%\data\" /Y >nul
+copy "%~1" "%WORKDIR%\data\" /Y
 if %errorlevel% neq 0 (
-    echo [ERROR] File copy failed.
-    pause
-    exit /b 1
+    echo [ERROR] File copy failed (error %errorlevel%).
+    goto :eof
 )
 set "LOCALFILE=%WORKDIR%\data\%~nx1"
-echo        -> %LOCALFILE%
+echo        OK
 
-REM -- Step 2: Convert data --
+REM -- Step 2: Convert data (output to log file, then print) --
 echo.
-echo [2/4] Converting data format...
-"%PYTHON%" "%CONVERT%" "%LOCALFILE%"
-if %errorlevel% neq 0 (
+echo [2/4] Converting data format (this may take 30-60 seconds)...
+echo        Writing output to sync_log.txt...
+echo.
+"%PYTHON%" "%CONVERT%" "%LOCALFILE%" >"%LOGFILE%" 2>&1
+set "PYEXIT=%errorlevel%"
+type "%LOGFILE%"
+if %PYEXIT% neq 0 (
     echo.
-    echo [ERROR] Data conversion failed (exit code %errorlevel%).
-    echo   Check console output above for details.
-    pause
-    exit /b 1
+    echo [ERROR] Data conversion failed (exit code %PYEXIT%).
+    echo   See above output and %LOGFILE% for details.
+    goto :eof
 )
 
 REM -- Clean up the temp copy --
@@ -74,8 +81,7 @@ if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Push to GitHub failed!
     echo   Check network and SSH key.
-    pause
-    exit /b 1
+    goto :eof
 )
 
 echo.
@@ -83,6 +89,4 @@ echo ============================================
 echo   SUCCESS! Data synced to GitHub.
 echo   zhongshanms/lamp-after-sale-analysis
 echo ============================================
-echo.
-timeout /t 5 /nobreak >nul
-exit /b 0
+goto :eof
