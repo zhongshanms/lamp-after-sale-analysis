@@ -72,6 +72,17 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(2
 .chart-box{background:var(--card-bg);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
 .chart-box h4{font-size:var(--font-md);margin-bottom:12px}
 .chart-box canvas{width:100%!important;max-height:300px}
+.chart-legend{min-width:180px;max-width:320px;max-height:320px;overflow-y:auto;padding:8px 0;font-size:var(--font-sm)}
+@media(max-width:768px){
+  .chart-legend{max-width:100%;max-height:none;display:flex;flex-wrap:wrap;gap:4px 16px}
+  .chart-legend .legend-item{padding:3px 8px}
+}
+.chart-legend .legend-item{display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;transition:opacity .2s}
+.chart-legend .legend-item:hover{opacity:0.7}
+.chart-legend .legend-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+.chart-legend .legend-label{flex:1;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chart-legend .legend-value{font-weight:600;color:var(--text);white-space:nowrap}
+.chart-legend .legend-pct{color:var(--text-secondary);font-size:0.78rem;min-width:42px;text-align:right}
 
 /* ========== Filter Bar ========== */
 .filter-bar{background:var(--card-bg);border-radius:var(--radius);padding:14px 18px;box-shadow:var(--shadow);margin-bottom:16px;display:flex;align-items:center;flex-wrap:wrap;gap:10px}
@@ -238,7 +249,10 @@ tbody tr:hover{background:#f8f9ff}
   </div>
   <div class="chart-section">
     <h3>🍩 售后类型分布</h3>
-    <div class="chart-wrap"><canvas id="chartTypeDonut"></canvas></div>
+    <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+      <div class="chart-wrap" style="flex:1;min-width:260px"><canvas id="chartTypeDonut"></canvas></div>
+      <div id="legend-chartTypeDonut" class="chart-legend"></div>
+    </div>
   </div>
   <div class="data-table-wrap">
     <h3>详细对比数据</h3>
@@ -264,9 +278,9 @@ tbody tr:hover{background:#f8f9ff}
   <div class="chart-grid">
     <div class="chart-box"><h4>① 售后工单趋势</h4><canvas id="chart1"></canvas></div>
     <div class="chart-box"><h4>② 售后数量趋势</h4><canvas id="chart2"></canvas></div>
-    <div class="chart-box"><h4>③ 售后类型分布</h4><canvas id="chart3"></canvas></div>
+    <div class="chart-box"><h4>③ 售后类型分布</h4><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"><canvas id="chart3" style="flex:1;min-width:200px"></canvas><div id="legend-chart3" class="chart-legend"></div></div></div>
     <div class="chart-box"><h4>④ 售后原因 TOP10</h4><canvas id="chart4"></canvas></div>
-    <div class="chart-box"><h4>⑤ 责任方工单分布</h4><canvas id="chart5"></canvas></div>
+    <div class="chart-box"><h4>⑤ 责任方工单分布</h4><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"><canvas id="chart5" style="flex:1;min-width:200px"></canvas><div id="legend-chart5" class="chart-legend"></div></div></div>
     <div class="chart-box"><h4>⑥ 售后金额分布</h4><canvas id="chart6"></canvas></div>
   </div>
 </div>
@@ -658,13 +672,14 @@ function makePieChart(canvasId, labels, values, colors) {
   let ctx = document.getElementById(canvasId);
   if (!ctx) return;
   let total = values.reduce((a,b)=>a+b,0);
+  let chartColors = colors || CHART_COLORS;
   gCharts[canvasId] = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels: labels,
       datasets: [{
         data: values,
-        backgroundColor: colors || CHART_COLORS,
+        backgroundColor: chartColors,
         borderWidth: 2,
         borderColor: '#fff',
       }]
@@ -674,12 +689,46 @@ function makePieChart(canvasId, labels, values, colors) {
       maintainAspectRatio: false,
       cutout: '55%',
       plugins: {
-        legend: { position: 'right', labels: { padding: 16, font: { size: 12 } } },
+        legend: { display: false },
         tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmtNum(ctx.raw)} (${fmtPct(ctx.raw, total)})` } }
       },
       animation: { animateRotate: true, duration: 800 }
     }
   });
+
+  // Generate custom legend with colored dots, values, and percentages
+  let legendId = 'legend-' + canvasId;
+  let legendEl = document.getElementById(legendId);
+  if (legendEl) {
+    let html = '';
+    labels.forEach((label, i) => {
+      let v = values[i];
+      let pct = total > 0 ? (v/total*100).toFixed(1) : '0';
+      let c = chartColors[i % chartColors.length];
+      html += `<div class="legend-item" onclick="toggleDoughnutSlice('${canvasId}',${i})">
+        <span class="legend-dot" style="background:${c}"></span>
+        <span class="legend-label">${label}</span>
+        <span class="legend-value">${fmtNum(v)}</span>
+        <span class="legend-pct">${pct}%</span>
+      </div>`;
+    });
+    legendEl.innerHTML = html;
+  }
+}
+
+function toggleDoughnutSlice(canvasId, index) {
+  let chart = gCharts[canvasId];
+  if (!chart) return;
+  let meta = chart.getDatasetMeta(0);
+  let hidden = meta.data[index].hidden;
+  meta.data[index].hidden = !hidden;
+  chart.update();
+  // Update legend opacity
+  let legendEl = document.getElementById('legend-' + canvasId);
+  if (legendEl) {
+    let item = legendEl.children[index];
+    if (item) item.style.opacity = !hidden ? '0.4' : '1';
+  }
 }
 
 function makeHorizontalBar(canvasId, labels, values, label) {
