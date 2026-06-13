@@ -842,7 +842,15 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
       data: {
         labels: periods,
         datasets: [
-          // 售后订单量 — 折线图（放在前面，图例售后在前）
+          // 订单量 — 柱状图（左，图例左侧）
+          {
+            label: '订单量',
+            data: salesVals,
+            backgroundColor: 'rgba(78,121,167,0.8)',
+            borderRadius: 4,
+            order: 1,
+          },
+          // 售后订单量 — 折线图（右，图例右侧）
           {
             label: '售后订单量',
             data: afterVals,
@@ -855,14 +863,6 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
             pointBackgroundColor: '#e15759',
             pointBorderColor: '#fff',
             pointBorderWidth: 2,
-            order: 1,
-          },
-          // 订单量 — 柱状图
-          {
-            label: '订单量',
-            data: salesVals,
-            backgroundColor: 'rgba(78,121,167,0.8)',
-            borderRadius: 4,
             order: 2,
           },
         ]
@@ -896,7 +896,7 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
         id: 'afterRateLabels',
         afterDatasetsDraw(chart) {
           // 在折线数据点上方标注售后率
-          let lineMeta = chart.getDatasetMeta(0); // 折线（售后订单量）
+          let lineMeta = chart.getDatasetMeta(1); // 折线（售后订单量，位于索引 1）
           lineMeta.data.forEach((point, i) => {
             if (salesVals[i] > 0) {
               let rate = (afterVals[i] / salesVals[i] * 100).toFixed(1);
