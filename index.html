@@ -261,7 +261,7 @@ tbody tr:hover{background:#f8f9ff}
     <h3>详细对比数据</h3>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>分组</th><th>工单数</th><th>退货数</th><th>退款金额(¥)</th><th>涉及SKU</th><th>有退款比例</th></tr></thead>
+        <thead><tr><th>分组</th><th>工单数</th><th>售后数</th><th>退款金额(¥)</th><th>涉及SKU</th><th>有退款比例</th></tr></thead>
         <tbody id="overviewTable"></tbody>
       </table>
     </div>
@@ -296,8 +296,8 @@ tbody tr:hover{background:#f8f9ff}
     <button class="btn btn-primary" onclick="applyAnalysis()">🔍 应用</button>
   </div>
   <div class="data-table-wrap"><h3>一、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>标签</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
-  <div class="data-table-wrap"><h3>二、责任方分析</h3><div class="table-scroll"><table><thead><tr><th>责任方</th><th>工单数</th><th>占比</th><th>退货总量</th></tr></thead><tbody id="analysisResp"></tbody></table></div></div>
-  <div class="data-table-wrap"><h3>三、退货数量 TOP20 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>商品名称</th><th>工单数</th><th>退货总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>二、责任方分析</h3><div class="table-scroll"><table><thead><tr><th>责任方</th><th>工单数</th><th>占比</th><th>售后总量</th></tr></thead><tbody id="analysisResp"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>三、售后数量 TOP20 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>商品名称</th><th>工单数</th><th>售后总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
 </div>
 
 <!-- Tab: Detail -->
@@ -317,7 +317,7 @@ tbody tr:hover{background:#f8f9ff}
         <thead><tr>
           <th class="sortable" onclick="sortDetail('create_time')">创建时间 <span class="sort-icon">▼▲</span></th>
           <th>SKU</th><th>商品名称</th><th>售后类型</th><th>售后原因</th><th>标签</th>
-          <th>退货数量</th>
+          <th>售后数量</th>
         </tr></thead>
         <tbody id="detailTable"></tbody>
       </table>
@@ -984,7 +984,7 @@ function applyChartsWithParams(start, end, granularity, skuTerm) {
     periodMap2[p] = (periodMap2[p]||0) + (r.return_qty||0);
   });
   let p2 = Object.keys(periodMap2).sort();
-  makeBarChart('chart2', p2, p2.map(k => periodMap2[k]), '退货数量', 'rgba(225,87,89,0.8)');
+  makeBarChart('chart2', p2, p2.map(k => periodMap2[k]), '售后数量', 'rgba(225,87,89,0.8)');
 
 
   // Chart 4: 售后原因 TOP10
@@ -1045,7 +1045,7 @@ function applyAnalysisWithParams(start, end, skuTerm) {
     `<tr><td>${k}</td><td>${fmtNum(v.count)}</td><td>${fmtPct(v.count,total4)}</td><td>${fmtNum(v.returnQty)}</td></tr>`
   ).join('');
 
-  // 三、退货数量 TOP20 SKU
+  // 三、售后数量 TOP20 SKU
   let skuMap = {};
   afterF.forEach(r => {
     if (!skuMap[r.sku]) skuMap[r.sku] = { name: r.product_name, count:0, returnQty:0, refundAmt:0 };
