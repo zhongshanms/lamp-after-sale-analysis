@@ -417,7 +417,8 @@ function fmtNum(v) { return v != null ? Number(v).toLocaleString() : '0'; }
 function fmtPct(v, total) { return total > 0 ? (v/total*100).toFixed(1) + '%' : '0%'; }
 
 // ===== Debug Panel Helpers =====
-var APP_VERSION = '2026-06-13-v2'; // bump on each deploy to detect stale cache
+var APP_VERSION = '2026-06-13-v3'; // bump on each deploy to detect stale cache
+var UPLOAD_SCHEMA_VER = 'v3-fixed-column-names'; // bump when field mapping changes → auto-clear UploadDB
 console.log('%c[APP] Version: ' + APP_VERSION, 'color:#4ec9b0;font-weight:bold');
 window.__debugLines = [];
 window.__mergeCallCount = 0;
@@ -782,6 +783,29 @@ async function mergeUploadedData() {
   var callSource = (new Error().stack || '').includes('initData') ? 'initData(页面加载)' : 'processUpload(上传后)';
   debugLog('[Merge#' + callNum + '] 开始 (' + callSource + ')  gAfterSale=' + gAfterSale.length + ' gSales=' + gSales.length);
 
+  // ── Auto-clear UploadDB if column-name schema version changed ──
+  var storedSchemaVer = localStorage.getItem('upload_schema_ver');
+  if (storedSchemaVer !== UPLOAD_SCHEMA_VER) {
+    debugLog('[Merge#' + callNum + '] 列名映射版本变更 (' + (storedSchemaVer||'无') + '→' + UPLOAD_SCHEMA_VER + ')，自动清理旧UploadDB', 'warn');
+    try {
+      var clrDB = getUploadDB();
+      var clrCount = await clrDB.records.count();
+      await clrDB.records.clear();
+      clrDB.close();
+      uploadDB = null;
+      debugLog('[Merge#' + callNum + '] 已清理 ' + clrCount + ' 条旧格式记录，请重新上传', 'success');
+      // Also clear localStorage upload metadata
+      var lsKeys = Object.keys(localStorage);
+      for (var ki = 0; ki < lsKeys.length; ki++) {
+        if (lsKeys[ki].startsWith('upload_')) localStorage.removeItem(lsKeys[ki]);
+      }
+    } catch(e) {
+      debugLog('[Merge#' + callNum + '] 清理UploadDB失败: ' + e, 'error');
+    }
+    localStorage.setItem('upload_schema_ver', UPLOAD_SCHEMA_VER);
+    return;
+  }
+
   try {
     let db = getUploadDB();
     console.log('[MERGE]   UploadDB ready, fetching all records...');
@@ -809,8 +833,8 @@ async function mergeUploadedData() {
       console.log('[MERGE]   Sample AFTER keys (' + afterKeys.length + '):', afterKeys.slice(0,20));
       console.log('[MERGE]   Sample AFTER values (first 5):', afterVals);
       debugLog('[Merge#' + callNum + '] 售后Excel列名(' + afterKeys.length + '个): ' + afterKeys.slice(0,15).join(', '));
-      var tidCheck = sampleAfter.data.ticket_id + ' | ' + sampleAfter.data['工单号'] + ' | ' + sampleAfter.data['Ticket ID'];
-      debugLog('[Merge#' + callNum + '] 售后 key 查找(ticket_id/工单号/Ticket ID): ' + tidCheck);
+      var tidCheck = sampleAfter.data.ticket_id + ' | ' + sampleAfter.data['工单号'] + ' | ' + sampleAfter.data['Ticket ID'] + ' | ' + sampleAfter.data['售后工单单号'];
+      debugLog('[Merge#' + callNum + '] 售后 key 查找(ticket_id/工单号/Ticket ID/售后工单单号): ' + tidCheck);
     }
     if (sampleSales) {
       var salesKeys = sampleSales.data ? Object.keys(sampleSales.data) : [];
@@ -818,9 +842,9 @@ async function mergeUploadedData() {
       console.log('[MERGE]   Sample SALES keys (' + salesKeys.length + '):', salesKeys.slice(0,20));
       console.log('[MERGE]   Sample SALES values (first 5):', salesVals);
       debugLog('[Merge#' + callNum + '] 销量Excel列名(' + salesKeys.length + '个): ' + salesKeys.slice(0,15).join(', '));
-      var dCheck = sampleSales.data.date + ' | ' + sampleSales.data['日期'] + ' | ' + sampleSales.data['Date'];
+      var dCheck = sampleSales.data.date + ' | ' + sampleSales.data['日期'] + ' | ' + sampleSales.data['Date'] + ' | ' + sampleSales.data['时间'];
       var sCheck = sampleSales.data.sku + ' | ' + sampleSales.data['SKU'];
-      debugLog('[Merge#' + callNum + '] 销量 key 查找(date/日期/Date): ' + dCheck + ' | (sku/SKU): ' + sCheck);
+      debugLog('[Merge#' + callNum + '] 销量 key 查找(date/日期/Date/时间): ' + dCheck + ' | (sku/SKU): ' + sCheck);
     }
     if (!sampleAfter && !sampleSales) {
       debugLog('[Merge#' + callNum + '] 无售后和销量记录', 'error');
@@ -863,7 +887,7 @@ async function mergeUploadedData() {
       if (!row) return;
 
       if (rec.type === 'after') {
-        var tid = row.ticket_id || row['工单号'] || row['Ticket ID'] || '';
+        var tid = row.ticket_id || row['工单号'] || row['Ticket ID'] || row['售后工单单号'] || '';
         if (!tid) { afterNoKey++; return; }
         if (existingAfterKeys.has(tid)) {
           afterSkipped++;
@@ -875,7 +899,7 @@ async function mergeUploadedData() {
           ticket_id: tid,
           after_sale_type: row.after_sale_type || row['售后类型'] || row['After Sale Type'] || '',
           product_name: row.product_name || row['商品名称'] || row['Product Name'] || '',
-          sku: row.sku || row['SKU'] || '',
+          sku: row.sku || row['SKU'] || row['Sku'] || '',
           reason: row.reason || row['售后原因'] || row['Reason'] || '',
           refund_status: row.refund_status || row['退款状态'] || row['Refund Status'] || '',
           order_amount: parseFloat(row.order_amount || row['订单金额'] || 0) || 0,
@@ -884,14 +908,14 @@ async function mergeUploadedData() {
           tag: row.tag || row['标签'] || row['Tag'] || '',
           create_time: row.create_time || row.create_date || row['创建时间'] || row['Create Date'] || '',
           create_date: row.create_date || row.create_time || row['创建时间'] || row['Create Date'] || '',
-          order_time: row.order_time || row['下单时间'] || '',
+          order_time: row.order_time || row['订购时间'] || row['下单时间'] || '',
           order_id: row.order_id || row['订单号'] || '',
           responsibility: row.responsibility || row.resp_party || row['责任方'] || row['Responsibility'] || '',
           year: rec.year || 0,
         });
         afterAdded++;
       } else if (rec.type === 'sales') {
-        var d = row.date || row['日期'] || row['Date'] || '';
+        var d = row.date || row['日期'] || row['Date'] || row['时间'] || '';
         var s = row.sku || row['SKU'] || '';
         var uk = d + '||' + s;
         if (!d || !s) { salesNoKey++; return; }
@@ -1637,11 +1661,11 @@ function processUpload(file, type) {
         let existingRecords = await db.records.where({type: type}).toArray();
         let existingKeys = new Set();
         if (type === 'after') {
-          // 售后工单: 按 ticket_id 去重
-          existingRecords.forEach(r => { if (r.data && r.data.ticket_id) existingKeys.add(r.data.ticket_id); });
+          // 售后工单: 按 ticket_id/工单号/Ticket ID/售后工单单号 去重
+          existingRecords.forEach(r => { if (r.data && (r.data.ticket_id || r.data['工单号'] || r.data['Ticket ID'] || r.data['售后工单单号'])) existingKeys.add(r.data.ticket_id || r.data['工单号'] || r.data['Ticket ID'] || r.data['售后工单单号']); });
         } else {
-          // 销量数据: 按 date||sku 去重
-          existingRecords.forEach(r => { if (r.data && r.data.date && r.data.sku) existingKeys.add(r.data.date + '||' + r.data.sku); });
+          // 销量数据: 按 date/日期/Date/时间||sku/SKU 去重
+          existingRecords.forEach(r => { if (r.data && (r.data.date || r.data['日期'] || r.data['Date'] || r.data['时间']) && (r.data.sku || r.data['SKU'])) existingKeys.add((r.data.date || r.data['日期'] || r.data['Date'] || r.data['时间']) + '||' + (r.data.sku || r.data['SKU'])); });
         }
 
         // Filter: only keep new records
@@ -1649,15 +1673,15 @@ function processUpload(file, type) {
         let skipped = 0;
         if (type === 'after') {
           json.forEach(row => {
-            let uk = row.ticket_id || row['工单号'] || row['Ticket ID'] || '';
+            var uk = row.ticket_id || row['工单号'] || row['Ticket ID'] || row['售后工单单号'] || '';
             if (uk && existingKeys.has(uk)) { skipped++; }
             else { newRecords.push(row); if (uk) existingKeys.add(uk); }
           });
         } else {
           json.forEach(row => {
-            let d = row.date || row['日期'] || row['Date'] || '';
-            let s = row.sku || row['SKU'] || '';
-            let uk = (d && s) ? (d + '||' + s) : '';
+            var d = row.date || row['日期'] || row['Date'] || row['时间'] || '';
+            var s = row.sku || row['SKU'] || '';
+            var uk = (d && s) ? (d + '||' + s) : '';
             if (uk && existingKeys.has(uk)) { skipped++; }
             else { newRecords.push(row); if (uk) existingKeys.add(uk); }
           });
