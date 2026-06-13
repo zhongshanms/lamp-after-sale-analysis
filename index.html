@@ -434,8 +434,8 @@ function showUploadTab(show) {
 // ========== DATA LOADING ==========
 async function loadData() {
   try {
-    // Priority 1: raw.githubusercontent.com
-    let url = 'https://raw.githubusercontent.com/zhongshanms/lamp-after-sale-analysis/main/data/after-sale-data.json';
+    // Priority 1: raw.githubusercontent.com (compact version for faster loading)
+    let url = 'https://raw.githubusercontent.com/zhongshanms/lamp-after-sale-analysis/main/data/after-sale-data-compact.json';
     let resp = await fetch(url, {cache:'no-store'});
     if (!resp.ok) throw new Error('Remote fetch failed');
     let json = await resp.json();
@@ -444,7 +444,7 @@ async function loadData() {
   } catch(e) {
     // Priority 2: relative path
     try {
-      let resp = await fetch('data/after-sale-data.json', {cache:'no-store'});
+      let resp = await fetch('data/after-sale-data-compact.json', {cache:'no-store'});
       if (!resp.ok) throw new Error('Local fetch failed');
       let json = await resp.json();
       initData(json);
@@ -1148,6 +1148,18 @@ function handleFile(input, type) {
   if (file) processUpload(file, type);
 }
 
+// IndexedDB upload store (via Dexie)
+let uploadDB;
+function getUploadDB() {
+  if (!uploadDB) {
+    uploadDB = new Dexie('UploadStore');
+    uploadDB.version(1).stores({
+      records: '++id,type,year'
+    });
+  }
+  return uploadDB;
+}
+
 function processUpload(file, type) {
   if (!file.name.match(/\.xlsx?$/i)) {
     showToast('请上传 .xlsx 或 .xls 文件', 'error');
@@ -1157,22 +1169,53 @@ function processUpload(file, type) {
   statusEl.textContent = '正在解析...';
 
   let reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     try {
       let wb = XLSX.read(e.target.result, {type:'array'});
       let sheet = wb.Sheets[wb.SheetNames[0]];
       let json = XLSX.utils.sheet_to_json(sheet);
-      statusEl.textContent = `解析完成: ${json.length} 条记录`;
-      showToast(`${type==='after'?'售后工单':'销量数据'}解析成功: ${json.length} 条`, 'success');
+      let recordCount = json.length;
+      statusEl.textContent = `解析完成: ${recordCount} 条记录`;
 
       let year = document.getElementById(type === 'after' ? 'yearAfter' : 'yearSales').value;
-      // Store in localStorage for demo (actual push requires backend)
-      let key = `upload_${type}_${year}`;
-      localStorage.setItem(key, JSON.stringify(json));
-      statusEl.textContent = `已存储: ${json.length} 条 (${year}年)  |  待同步到云端`;
+      let recType = type === 'after' ? '售后工单' : '销量数据';
+
+      // Use IndexedDB instead of localStorage for large datasets
+      try {
+        let db = getUploadDB();
+        // Clear old records for this type+year
+        await db.records.where({type: type, year: parseInt(year)}).delete();
+        // Insert new records in batches to avoid memory issues
+        let batchSize = 500;
+        let key = `upload_${type}_${year}`;
+        for (let i = 0; i < json.length; i += batchSize) {
+          let batch = json.slice(i, i + batchSize).map(row => ({
+            type: type,
+            year: parseInt(year),
+            data: row
+          }));
+          await db.records.bulkAdd(batch);
+          let pct = Math.round((i + batch.length) / json.length * 100);
+          statusEl.textContent = `存储中... ${pct}% (${i + batch.length}/${json.length})`;
+        }
+        // Store metadata in localStorage (small)
+        localStorage.setItem(key + '_meta', JSON.stringify({
+          count: recordCount, type: type, year: year, stored: new Date().toISOString()
+        }));
+        showToast(`${recType}存储成功: ${recordCount} 条 (${year}年)`, 'success');
+        statusEl.textContent = `已存储: ${recordCount} 条 (${year}年) — 已使用浏览器数据库存储，不会丢失`;
+      } catch(err) {
+        if (err.name === 'QuotaExceededError' || err.message.includes('quota')) {
+          statusEl.textContent = '存储空间不足！数据已就绪但未能保存到浏览器';
+          showToast('浏览器存储空间不足，请清理后再试或直接使用预置数据', 'error');
+        } else {
+          throw err;
+        }
+      }
     } catch(err) {
       statusEl.textContent = '解析失败: ' + err.message;
-      showToast('文件解析失败', 'error');
+      showToast('文件解析失败: ' + err.message, 'error');
+      console.error('Upload error:', err);
     }
   };
   reader.readAsArrayBuffer(file);
