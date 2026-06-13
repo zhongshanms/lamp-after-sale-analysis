@@ -278,9 +278,9 @@ tbody tr:hover{background:#f8f9ff}
   <div class="chart-grid">
     <div class="chart-box"><h4>① 售后工单趋势</h4><canvas id="chart1"></canvas></div>
     <div class="chart-box"><h4>② 售后数量趋势</h4><canvas id="chart2"></canvas></div>
-    <div class="chart-box"><h4>③ 售后类型分布</h4><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"><canvas id="chart3" style="flex:1;min-width:200px"></canvas><div id="legend-chart3" class="chart-legend"></div></div></div>
+    <div class="chart-box"><h4>③ 售后类型分布</h4><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"><div class="chart-wrap" style="flex:1;min-width:220px"><canvas id="chart3"></canvas></div><div id="legend-chart3" class="chart-legend"></div></div></div>
     <div class="chart-box"><h4>④ 售后原因 TOP10</h4><canvas id="chart4"></canvas></div>
-    <div class="chart-box"><h4>⑤ 责任方工单分布</h4><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"><canvas id="chart5" style="flex:1;min-width:200px"></canvas><div id="legend-chart5" class="chart-legend"></div></div></div>
+    <div class="chart-box"><h4>⑤ 责任方工单分布</h4><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"><div class="chart-wrap" style="flex:1;min-width:220px"><canvas id="chart5"></canvas></div><div id="legend-chart5" class="chart-legend"></div></div></div>
     <div class="chart-box"><h4>⑥ 售后金额分布</h4><canvas id="chart6"></canvas></div>
   </div>
 </div>
@@ -945,45 +945,11 @@ function applyChartsWithParams(start, end, granularity, skuTerm) {
   let rl = Object.keys(reasonMap).sort((a,b) => reasonMap[b]-reasonMap[a]).slice(0,10);
   makeHorizontalBar('chart4', rl, rl.map(r => reasonMap[r]), '工单数');
 
-  // Chart 5: 责任方分布
+  // Chart 5: 责任方分布（环形图）
   let respMap = {};
   afterF.forEach(r => { let t = r.responsibility||'C-客户-个人原因'; respMap[t] = (respMap[t]||0) + 1; });
   let rpLabels = Object.keys(respMap).sort((a,b) => respMap[b]-respMap[a]);
-  let rpTotal = rpLabels.reduce((s,l) => s + respMap[l], 0);
-  destroyChart('chart5');
-  let ctx5 = document.getElementById('chart5');
-  if (ctx5) {
-    gCharts['chart5'] = new Chart(ctx5, {
-      type: 'bar',
-      data: {
-        labels: rpLabels,
-        datasets: [{
-          label: '工单数',
-          data: rpLabels.map(l => respMap[l]),
-          backgroundColor: ['#4e79a7','#59a14f','#f28e2b','#e15759','#b07aa1','#76b7b2'],
-          borderRadius: 4,
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { y: { beginAtZero: true, grid: { color: '#f0f0f0' } }, x: { grid: { display: false }, ticks: { font:{size:11} } } },
-      },
-      plugins: [{
-        id: 'respLabels',
-        afterDatasetsDraw(chart) {
-          let meta = chart.getDatasetMeta(0);
-          meta.data.forEach((bar, i) => {
-            let val = rpLabels.map(l => respMap[l])[i];
-            chart.ctx.fillStyle = '#333';
-            chart.ctx.font = 'bold 10px sans-serif';
-            chart.ctx.textAlign = 'center';
-            chart.ctx.fillText(`${fmtNum(val)}(${fmtPct(val,rpTotal)})`, bar.x, bar.y - 6);
-          });
-        }
-      }]
-    });
-  }
+  makePieChart('chart5', rpLabels, rpLabels.map(l => respMap[l]));
 
   // Chart 6: 售后金额分布
   let amountBins = { '0-20':0,'20-50':0,'50-100':0,'100-200':0,'200-500':0,'500-1K':0,'1K-5K':0,'5K+':0 };
