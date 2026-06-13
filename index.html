@@ -295,9 +295,9 @@ tbody tr:hover{background:#f8f9ff}
     <button class="btn btn-outline" onclick="resetAnalysis()">🔄 重置</button>
     <button class="btn btn-primary" onclick="applyAnalysis()">🔍 应用</button>
   </div>
-  <div class="data-table-wrap"><h3>三、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>标签</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
-  <div class="data-table-wrap"><h3>四、责任方分析</h3><div class="table-scroll"><table><thead><tr><th>责任方</th><th>工单数</th><th>占比</th><th>退货总量</th></tr></thead><tbody id="analysisResp"></tbody></table></div></div>
-  <div class="data-table-wrap"><h3>五、退货数量 TOP20 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>商品名称</th><th>工单数</th><th>退货总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>一、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>标签</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>二、责任方分析</h3><div class="table-scroll"><table><thead><tr><th>责任方</th><th>工单数</th><th>占比</th><th>退货总量</th></tr></thead><tbody id="analysisResp"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>三、退货数量 TOP20 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>商品名称</th><th>工单数</th><th>退货总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
 </div>
 
 <!-- Tab: Detail -->
@@ -1021,7 +1021,7 @@ function applyAnalysisWithParams(start, end, skuTerm) {
   let afterF = filterAfterSale(start, end, skuTerm);
 
 
-  // 三、标签分布 TOP30
+  // 一、标签分布 TOP30
   let tagMap = {};
   afterF.forEach(r => { let t = r.tag||'其他'; tagMap[t] = (tagMap[t]||0) + 1; });
   let total3 = afterF.length;
@@ -1030,7 +1030,7 @@ function applyAnalysisWithParams(start, end, skuTerm) {
     `<tr><td>${i+1}</td><td>${k}</td><td>${fmtNum(v)}</td><td>${fmtPct(v,total3)}</td></tr>`
   ).join('');
 
-  // 四、责任方分析
+  // 二、责任方分析
   let respMap = {};
   afterF.forEach(r => {
     let t = r.responsibility||'C-客户-个人原因';
@@ -1045,7 +1045,7 @@ function applyAnalysisWithParams(start, end, skuTerm) {
     `<tr><td>${k}</td><td>${fmtNum(v.count)}</td><td>${fmtPct(v.count,total4)}</td><td>${fmtNum(v.returnQty)}</td></tr>`
   ).join('');
 
-  // 五、退货数量 TOP20 SKU
+  // 三、退货数量 TOP20 SKU
   let skuMap = {};
   afterF.forEach(r => {
     if (!skuMap[r.sku]) skuMap[r.sku] = { name: r.product_name, count:0, returnQty:0, refundAmt:0 };
