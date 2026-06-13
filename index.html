@@ -1175,30 +1175,64 @@ function processUpload(file, type) {
       let year = document.getElementById(type === 'after' ? 'yearAfter' : 'yearSales').value;
       let recType = type === 'after' ? '售后工单' : '销量数据';
 
-      // Use IndexedDB instead of localStorage for large datasets
+      // Incremental update: build existing-unique-key set, only insert new records
       try {
         let db = getUploadDB();
-        // Clear old records for this type+year
-        await db.records.where({type: type, year: parseInt(year)}).delete();
-        // Insert new records in batches to avoid memory issues
+        let yearNum = parseInt(year);
+
+        // Query existing unique keys for this type
+        let existingRecords = await db.records.where({type: type}).toArray();
+        let existingKeys = new Set();
+        if (type === 'after') {
+          // 售后工单: 按 ticket_id 去重
+          existingRecords.forEach(r => { if (r.data && r.data.ticket_id) existingKeys.add(r.data.ticket_id); });
+        } else {
+          // 销量数据: 按 date||sku 去重
+          existingRecords.forEach(r => { if (r.data && r.data.date && r.data.sku) existingKeys.add(r.data.date + '||' + r.data.sku); });
+        }
+
+        // Filter: only keep new records
+        let newRecords = [];
+        let skipped = 0;
+        if (type === 'after') {
+          json.forEach(row => {
+            let uk = row.ticket_id || row['工单号'] || row['Ticket ID'] || '';
+            if (uk && existingKeys.has(uk)) { skipped++; }
+            else { newRecords.push(row); if (uk) existingKeys.add(uk); }
+          });
+        } else {
+          json.forEach(row => {
+            let d = row.date || row['日期'] || row['Date'] || '';
+            let s = row.sku || row['SKU'] || '';
+            let uk = (d && s) ? (d + '||' + s) : '';
+            if (uk && existingKeys.has(uk)) { skipped++; }
+            else { newRecords.push(row); if (uk) existingKeys.add(uk); }
+          });
+        }
+
+        // Insert only new records in batches
         let batchSize = 500;
         let key = `upload_${type}_${year}`;
-        for (let i = 0; i < json.length; i += batchSize) {
-          let batch = json.slice(i, i + batchSize).map(row => ({
+        for (let i = 0; i < newRecords.length; i += batchSize) {
+          let batch = newRecords.slice(i, i + batchSize).map(row => ({
             type: type,
-            year: parseInt(year),
+            year: yearNum,
             data: row
           }));
           await db.records.bulkAdd(batch);
-          let pct = Math.round((i + batch.length) / json.length * 100);
-          statusEl.textContent = `存储中... ${pct}% (${i + batch.length}/${json.length})`;
+          let pct = Math.round((i + batch.length) / newRecords.length * 100);
+          statusEl.textContent = `存储中... ${pct}% (${i + batch.length}/${newRecords.length})`;
         }
         // Store metadata in localStorage (small)
+        let totalStored = (await db.records.where({type: type}).count());
         localStorage.setItem(key + '_meta', JSON.stringify({
-          count: recordCount, type: type, year: year, stored: new Date().toISOString()
+          count: totalStored, type: type, lastUpload: new Date().toISOString(),
+          added: newRecords.length, skipped: skipped, total: recordCount
         }));
-        showToast(`${recType}存储成功: ${recordCount} 条 (${year}年)`, 'success');
-        statusEl.textContent = `已存储: ${recordCount} 条 (${year}年) — 已使用浏览器数据库存储，不会丢失`;
+        let msg = `${recType}: 新增 ${newRecords.length} 条`;
+        if (skipped > 0) msg += `，跳过 ${skipped} 条（已存在）`;
+        showToast(msg, 'success');
+        statusEl.textContent = `累计: ${totalStored} 条 | 本次新增: ${newRecords.length} 条，跳过重复: ${skipped} 条`;
       } catch(err) {
         if (err.name === 'QuotaExceededError' || err.message.includes('quota')) {
           statusEl.textContent = '存储空间不足！数据已就绪但未能保存到浏览器';
