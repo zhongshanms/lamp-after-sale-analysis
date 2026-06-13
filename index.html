@@ -1007,7 +1007,7 @@ function applyChartsWithParams(start, end, granularity, skuTerm) {
   afterF.forEach(r => { let t = r.responsibility||'C-客户-个人原因'; respMap[t] = (respMap[t]||0) + 1; });
   let rpLabels = Object.keys(respMap).sort((a,b) => respMap[b]-respMap[a]);
   makePieChart('chart5', rpLabels, rpLabels.map(l => respMap[l]));
-
+}
 
 function refreshAnalysis() {
   if (!gAfterSale.length) return;
