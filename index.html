@@ -1487,13 +1487,15 @@ async function resetUploadData() {
   }
 
   try {
-    // Clear UploadStore DB
-    let uploadDB = getUploadDB();
-    await uploadDB.records.clear();
+    // Close and completely delete UploadStore database
+    if (uploadDB) { uploadDB.close(); uploadDB = null; }
+    await Dexie.delete('UploadStore');
+    console.log('UploadStore database deleted');
 
-    // Clear DataCache DB
-    let dataDB = getDataCacheDB();
-    await dataDB.cache.clear();
+    // Close and completely delete DataCache database
+    if (dataCacheDB) { dataCacheDB.close(); dataCacheDB = null; }
+    await Dexie.delete('DataCache');
+    console.log('DataCache database deleted');
 
     // Clear localStorage metadata
     let keys = Object.keys(localStorage);
