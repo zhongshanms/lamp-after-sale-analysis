@@ -261,7 +261,7 @@ tbody tr:hover{background:#f8f9ff}
     <h3>详细对比数据</h3>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>分组</th><th>工单数</th><th>售后数</th><th>退款金额(¥)</th><th>涉及SKU</th><th>有退款比例</th></tr></thead>
+        <thead><tr><th>分组</th><th>订单量</th><th>工单数</th><th>售后数</th><th>涉及SKU</th></tr></thead>
         <tbody id="overviewTable"></tbody>
       </table>
     </div>
@@ -937,10 +937,10 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
   let tbody = document.getElementById('overviewTable');
   tbody.innerHTML = periods.map(p => {
     let as = groupMapAS[p] || { count:0, returnQty:0, refundAmt:0, refundCount:0, skus: new Set() };
-    let refundPct = as.count > 0 ? (as.refundCount/as.count*100).toFixed(1) : '0.0';
+    let orderQty = groupMapSL[p] || 0;
     return `<tr>
-      <td>${p}</td><td>${fmtNum(as.count)}</td><td>${fmtNum(as.returnQty)}</td>
-      <td>${fmtMoney(as.refundAmt)}</td><td>${as.skus.size}</td><td>${refundPct}%</td>
+      <td>${p}</td><td>${fmtNum(orderQty)}</td><td>${fmtNum(as.count)}</td><td>${fmtNum(as.returnQty)}</td>
+      <td>${as.skus.size}</td>
     </tr>`;
   }).join('');
 }
