@@ -1292,7 +1292,7 @@ document.getElementById('loginModal').addEventListener('click', function(e) {
 });
 
 // ========== INIT ==========
-(function init() {
+document.addEventListener('DOMContentLoaded', function() {
   try {
     // Bind UI events (use addEventListener for reliability)
     let loginBtn = document.getElementById('loginBtn');
@@ -1316,34 +1316,35 @@ document.getElementById('loginModal').addEventListener('click', function(e) {
     overlay.innerHTML = loadingHTML;
     document.body.appendChild(overlay);
 
-    loadData().then(() => {
+    loadData().then(function() {
       // Remove loading overlay after data loads
       let ov = document.getElementById('loading-overlay');
       if (ov) ov.remove();
-    }).catch(err => {
+    }).catch(function(err) {
       console.error('Data load error:', err);
       let ov = document.getElementById('loading-overlay');
       if (ov) ov.remove();
       // Show error state on page
-      let detail = document.getElementById('loading-detail');
       document.getElementById('status-after').textContent = '售后: 加载失败';
       document.getElementById('status-sales').textContent = '销量: 加载失败';
       showToast('数据加载失败，请刷新页面重试', 'error');
     });
 
     // Auto-refresh check every 5 minutes
-    setInterval(async () => {
+    setInterval(function() {
       try {
-        let resp = await fetch('https://raw.githubusercontent.com/zhongshanms/lamp-after-sale-analysis/main/data/version.json', {cache:'no-store'});
-        if (resp.ok) {
-          let v = await resp.json();
-          let local = localStorage.getItem(STORAGE_CLOUD_KEY);
-          if (v.updated !== local) {
-            showToast('检测到新数据，正在更新...', '');
-            loadData();
-            localStorage.setItem(STORAGE_CLOUD_KEY, v.updated);
+        fetch('https://raw.githubusercontent.com/zhongshanms/lamp-after-sale-analysis/main/data/version.json', {cache: 'no-store'}).then(function(resp) {
+          if (resp.ok) {
+            resp.json().then(function(v) {
+              let local = localStorage.getItem(STORAGE_CLOUD_KEY);
+              if (v.updated !== local) {
+                showToast('检测到新数据，正在更新...', '');
+                loadData();
+                localStorage.setItem(STORAGE_CLOUD_KEY, v.updated);
+              }
+            });
           }
-        }
+        });
       } catch(e) {}
     }, 300000);
   } catch(err) {
@@ -1351,7 +1352,7 @@ document.getElementById('loginModal').addEventListener('click', function(e) {
     document.getElementById('js-error-banner').style.display = 'block';
     document.getElementById('js-error-banner').textContent = '⚠️ 页面初始化失败: ' + err.message + ' — 请刷新页面';
   }
-})();
+});
 </script>
 </body>
 </html>
