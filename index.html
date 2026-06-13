@@ -66,10 +66,12 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(2
 /* ========== Chart Containers ========== */
 .chart-section{background:var(--card-bg);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-bottom:20px}
 .chart-section h3{font-size:1.05rem;margin-bottom:16px;color:var(--text)}
+.chart-section .chart-wrap{position:relative;height:320px;max-height:400px}
+.chart-section .chart-wrap canvas{width:100%!important;height:100%!important}
 .chart-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
 .chart-box{background:var(--card-bg);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
 .chart-box h4{font-size:var(--font-md);margin-bottom:12px}
-.chart-box canvas{width:100%!important;max-height:320px}
+.chart-box canvas{width:100%!important;max-height:300px}
 
 /* ========== Filter Bar ========== */
 .filter-bar{background:var(--card-bg);border-radius:var(--radius);padding:14px 18px;box-shadow:var(--shadow);margin-bottom:16px;display:flex;align-items:center;flex-wrap:wrap;gap:10px}
@@ -105,6 +107,7 @@ tbody tr:hover{background:#f8f9ff}
 @media(max-width:768px){
   .stats-cards{grid-template-columns:repeat(2,1fr)}
   .chart-grid{grid-template-columns:1fr}
+  .chart-section .chart-wrap{height:280px}
   .upload-section{grid-template-columns:1fr}
   .header h1{font-size:1.1rem}
   .nav-btn{padding:10px 14px;font-size:var(--font-sm)}
@@ -112,6 +115,7 @@ tbody tr:hover{background:#f8f9ff}
 }
 @media(max-width:480px){
   .stats-cards{grid-template-columns:1fr}
+  .chart-section .chart-wrap{height:240px}
   .header{padding:10px 14px}
   .header .data-status{display:none}
   .filter-bar{flex-direction:column;align-items:stretch}
@@ -230,11 +234,11 @@ tbody tr:hover{background:#f8f9ff}
   <div class="stats-cards" id="overviewCards"></div>
   <div class="chart-section">
     <h3>📊 订单量 vs 售后订单量趋势</h3>
-    <canvas id="chartTrend" height="300"></canvas>
+    <div class="chart-wrap"><canvas id="chartTrend"></canvas></div>
   </div>
   <div class="chart-section">
     <h3>🍩 售后类型分布</h3>
-    <canvas id="chartTypeDonut" height="300"></canvas>
+    <div class="chart-wrap"><canvas id="chartTypeDonut"></canvas></div>
   </div>
   <div class="data-table-wrap">
     <h3>详细对比数据</h3>
