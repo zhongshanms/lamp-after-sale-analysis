@@ -298,8 +298,8 @@ tbody tr:hover{background:#f8f9ff}
   <div class="data-table-wrap"><h3>一、售后类型分布</h3><div class="table-scroll"><table><thead><tr><th>售后类型</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisType"></tbody></table></div></div>
   <div class="data-table-wrap"><h3>二、售后原因 TOP20</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>售后原因</th><th>工单数</th><th>占比</th><th>累计占比</th></tr></thead><tbody id="analysisReason"></tbody></table></div></div>
   <div class="data-table-wrap"><h3>三、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>标签</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
-  <div class="data-table-wrap"><h3>四、责任方分析</h3><div class="table-scroll"><table><thead><tr><th>责任方</th><th>工单数</th><th>占比</th><th>退货总量</th><th>退款总额(¥)</th><th>均单退款(¥)</th></tr></thead><tbody id="analysisResp"></tbody></table></div></div>
-  <div class="data-table-wrap"><h3>五、退货数量 TOP20 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>商品名称</th><th>工单数</th><th>退货总数</th><th>退款总额(¥)</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>四、责任方分析</h3><div class="table-scroll"><table><thead><tr><th>责任方</th><th>工单数</th><th>占比</th><th>退货总量</th></tr></thead><tbody id="analysisResp"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>五、退货数量 TOP20 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>商品名称</th><th>工单数</th><th>退货总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
 </div>
 
 <!-- Tab: Detail -->
@@ -319,7 +319,7 @@ tbody tr:hover{background:#f8f9ff}
         <thead><tr>
           <th class="sortable" onclick="sortDetail('create_time')">创建时间 <span class="sort-icon">▼▲</span></th>
           <th>SKU</th><th>商品名称</th><th>售后类型</th><th>售后原因</th><th>标签</th>
-          <th>退货数量</th><th>退款金额</th><th>状态</th>
+          <th>退货数量</th>
         </tr></thead>
         <tbody id="detailTable"></tbody>
       </table>
@@ -1063,7 +1063,7 @@ function applyAnalysisWithParams(start, end, skuTerm) {
   let total4 = afterF.length;
   let respArr = Object.entries(respMap).sort((a,b) => b[1].count-a[1].count);
   document.getElementById('analysisResp').innerHTML = respArr.map(([k,v]) =>
-    `<tr><td>${k}</td><td>${fmtNum(v.count)}</td><td>${fmtPct(v.count,total4)}</td><td>${fmtNum(v.returnQty)}</td><td>${fmtMoney(v.refundAmt)}</td><td>${fmtMoney(v.count>0?v.refundAmt/v.count:0)}</td></tr>`
+    `<tr><td>${k}</td><td>${fmtNum(v.count)}</td><td>${fmtPct(v.count,total4)}</td><td>${fmtNum(v.returnQty)}</td></tr>`
   ).join('');
 
   // 五、退货数量 TOP20 SKU
@@ -1076,7 +1076,7 @@ function applyAnalysisWithParams(start, end, skuTerm) {
   });
   let skuArr = Object.entries(skuMap).sort((a,b) => b[1].returnQty-a[1].returnQty).slice(0,20);
   document.getElementById('analysisSku').innerHTML = skuArr.map(([k,v],i) =>
-    `<tr><td>${i+1}</td><td>${k}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${v.name}</td><td>${fmtNum(v.count)}</td><td>${fmtNum(v.returnQty)}</td><td>${fmtMoney(v.refundAmt)}</td></tr>`
+    `<tr><td>${i+1}</td><td>${k}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${v.name}</td><td>${fmtNum(v.count)}</td><td>${fmtNum(v.returnQty)}</td></tr>`
   ).join('');
 }
 
@@ -1136,8 +1136,6 @@ function applyDetailWithParams() {
       <td>${r.reason}</td>
       <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis" title="${r.tag}">${r.tag}</td>
       <td>${r.return_qty}</td>
-      <td>${fmtMoney(r.refund_amount)}</td>
-      <td><span style="padding:2px 8px;border-radius:10px;font-size:0.75rem;background:${r.refund_status==='退款完成'?'#d4edda':'#fff3cd'};color:${r.refund_status==='退款完成'?'#155724':'#856404'}">${r.refund_status}</span></td>
     </tr>
   `).join('');
 }
