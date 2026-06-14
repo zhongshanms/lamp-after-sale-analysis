@@ -310,8 +310,8 @@ tbody tr:hover{background:#f8f9ff}
     <label>SKU:</label><input type="text" id="an-sku" placeholder="搜索SKU...">
     <button class="btn btn-outline" onclick="resetAnalysis()">🔄 重置</button>
   </div>
-  <div class="data-table-wrap"><h3>一、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>标签</th><th style="padding-right:15ch">工单数</th><th style="padding-right:15ch">占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
-  <div class="data-table-wrap"><h3>二、责任方分析</h3><div class="table-scroll"><table><thead><tr><th>责任方</th><th style="padding-right:15ch">工单数</th><th style="padding-right:15ch">占比</th><th>售后总量</th></tr></thead><tbody id="analysisResp"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>一、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>标签</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>二、责任方分析</h3><div class="table-scroll"><table><thead><tr><th>责任方</th><th>工单数</th><th>占比</th><th>售后总量</th></tr></thead><tbody id="analysisResp"></tbody></table></div></div>
   <div class="data-table-wrap"><h3>三、售后数量 TOP20 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>商品名称</th><th>工单数</th><th>售后总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
 </div>
 
@@ -1492,7 +1492,7 @@ function applyAnalysisWithParams(start, end, skuTerm) {
   let total3 = afterF.length;
   let tagArr = Object.entries(tagMap).sort((a,b) => b[1]-a[1]).slice(0,30);
   document.getElementById('analysisTag').innerHTML = tagArr.map(([k,v],i) =>
-    `<tr><td>${i+1}</td><td>${k}</td><td style="padding-right:15ch">${fmtNum(v)}</td><td style="padding-right:15ch">${fmtPct(v,total3)}</td></tr>`
+    `<tr><td>${i+1}</td><td>${k}</td><td>${fmtNum(v)}</td><td>${fmtPct(v,total3)}</td></tr>`
   ).join('');
 
   // 二、责任方分析
@@ -1507,7 +1507,7 @@ function applyAnalysisWithParams(start, end, skuTerm) {
   let total4 = afterF.length;
   let respArr = Object.entries(respMap).sort((a,b) => b[1].count-a[1].count);
   document.getElementById('analysisResp').innerHTML = respArr.map(([k,v]) =>
-    `<tr><td>${k}</td><td style="padding-right:15ch">${fmtNum(v.count)}</td><td style="padding-right:15ch">${fmtPct(v.count,total4)}</td><td>${fmtNum(v.returnQty)}</td></tr>`
+    `<tr><td>${k}</td><td>${fmtNum(v.count)}</td><td>${fmtPct(v.count,total4)}</td><td>${fmtNum(v.returnQty)}</td></tr>`
   ).join('');
 
   // 三、售后数量 TOP20 SKU
