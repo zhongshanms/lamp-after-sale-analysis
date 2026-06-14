@@ -99,6 +99,9 @@ thead{position:sticky;top:0;z-index:1}
 thead th{background:#f8f9fa;border-bottom:2px solid var(--border);padding:10px 12px;text-align:left;font-weight:600;white-space:nowrap}
 tbody td{padding:9px 12px;border-bottom:1px solid #f0f0f0;white-space:nowrap}
 tbody tr:hover{background:#f8f9ff}
+/* 标签分布 TOP30：工单数/占比左移10汉字（前序列宽约15ch） */
+.col-rank{width:3ch;min-width:3ch;text-align:center}
+.col-tag{width:12ch;min-width:12ch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sortable{cursor:pointer;user-select:none}
 .sortable:hover{color:var(--primary)}
 .sort-icon{font-size:0.7rem;margin-left:4px}
@@ -310,7 +313,7 @@ tbody tr:hover{background:#f8f9ff}
     <label>SKU:</label><input type="text" id="an-sku" placeholder="搜索SKU...">
     <button class="btn btn-outline" onclick="resetAnalysis()">🔄 重置</button>
   </div>
-  <div class="data-table-wrap"><h3>一、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>标签</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>一、标签分布 TOP30</h3><div class="table-scroll"><table style="table-layout:fixed;width:100%"><thead><tr><th class="col-rank">排名</th><th class="col-tag">标签</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
   <div class="data-table-wrap"><h3>二、责任方分析</h3><div class="table-scroll"><table><thead><tr><th>责任方</th><th>工单数</th><th>占比</th><th>售后总量</th></tr></thead><tbody id="analysisResp"></tbody></table></div></div>
   <div class="data-table-wrap"><h3>三、售后数量 TOP20 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>商品名称</th><th>工单数</th><th>售后总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
 </div>
@@ -1492,7 +1495,7 @@ function applyAnalysisWithParams(start, end, skuTerm) {
   let total3 = afterF.length;
   let tagArr = Object.entries(tagMap).sort((a,b) => b[1]-a[1]).slice(0,30);
   document.getElementById('analysisTag').innerHTML = tagArr.map(([k,v],i) =>
-    `<tr><td>${i+1}</td><td>${k}</td><td>${fmtNum(v)}</td><td>${fmtPct(v,total3)}</td></tr>`
+    `<tr><td class="col-rank">${i+1}</td><td class="col-tag" title="${k}">${k}</td><td>${fmtNum(v)}</td><td>${fmtPct(v,total3)}</td></tr>`
   ).join('');
 
   // 二、责任方分析
