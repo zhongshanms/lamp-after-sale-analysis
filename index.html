@@ -173,7 +173,7 @@ tbody tr:hover{background:#f8f9ff}
 
 <!-- Header -->
 <header class="header">
-  <h1>📊 独立站灯饰售后工单分析系统</h1>
+  <h1>📊 独立站灯饰售后工单分析系统<span id="data-date-range" style="font-size:0.72rem;font-weight:400;color:#a0aec0;margin-left:10px;vertical-align:middle;white-space:nowrap"></span></h1>
   <div class="header-right">
     <div class="data-status">
       <span id="status-after">售后: 加载中...</span>
@@ -1041,6 +1041,28 @@ async function initData(json) {
   refreshAnalysis();
   refreshDetail();
   refreshDBStatus();
+  updateDateRangeLabel();
+}
+
+// 计算数据日期范围并更新标题旁的标注
+function updateDateRangeLabel() {
+  var el = document.getElementById('data-date-range');
+  if (!el) return;
+  var allDates = [];
+  gAfterSale.forEach(function(r) {
+    var d = r.create_date || r.create_time || '';
+    if (d) allDates.push(d.slice(0, 10));
+  });
+  gSales.forEach(function(r) {
+    var d = r.date_date || r.date || '';
+    if (d) allDates.push(d.slice(0, 10));
+  });
+  allDates = allDates.filter(function(d) { return /^\d{4}-\d{2}-\d{2}/.test(d); });
+  if (allDates.length === 0) { el.textContent = ''; return; }
+  allDates.sort();
+  var minD = allDates[0].slice(0, 10);
+  var maxD = allDates[allDates.length - 1].slice(0, 10);
+  el.textContent = '(' + minD + ' ~ ' + maxD + ')';
 }
 
 // ========== DATA FILTERING ==========
@@ -1716,6 +1738,7 @@ function processUpload(file, type) {
           document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
           document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
           debugLog('状态栏已更新: 售后=' + gAfterSale.length + ' 销量=' + gSales.length, 'success');
+          updateDateRangeLabel();
           refreshOverview();
           refreshCharts();
           refreshAnalysis();
