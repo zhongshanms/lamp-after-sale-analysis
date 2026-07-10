@@ -1288,8 +1288,10 @@ function applyOverview() {
 }
 
 function resetOverview() {
-  document.getElementById('ov-start').value = '';
-  document.getElementById('ov-end').value = '';
+  ['ov','ch','an','dt'].forEach(function(p){
+    var s=document.getElementById(p+'-start'), e=document.getElementById(p+'-end');
+    if(s) s.value=''; if(e) e.value='';
+  });
   document.getElementById('ov-granularity').value = 'month';
   document.getElementById('ov-sku').value = '';
   refreshOverview();
@@ -1439,8 +1441,10 @@ function refreshCharts() {
 function applyCharts() { refreshCharts(); }
 
 function resetCharts() {
-  document.getElementById('ch-start').value = '';
-  document.getElementById('ch-end').value = '';
+  ['ov','ch','an','dt'].forEach(function(p){
+    var s=document.getElementById(p+'-start'), e=document.getElementById(p+'-end');
+    if(s) s.value=''; if(e) e.value='';
+  });
   document.getElementById('ch-granularity').value = 'month';
   document.getElementById('ch-sku').value = '';
   refreshCharts();
@@ -1502,8 +1506,10 @@ function refreshAnalysis() {
 function applyAnalysis() { refreshAnalysis(); }
 
 function resetAnalysis() {
-  document.getElementById('an-start').value = '';
-  document.getElementById('an-end').value = '';
+  ['ov','ch','an','dt'].forEach(function(p){
+    var s=document.getElementById(p+'-start'), e=document.getElementById(p+'-end');
+    if(s) s.value=''; if(e) e.value='';
+  });
   document.getElementById('an-sku').value = '';
   refreshAnalysis();
 }
@@ -1546,8 +1552,10 @@ function applyDetail() {
 }
 
 function resetDetail() {
-  document.getElementById('dt-start').value = '';
-  document.getElementById('dt-end').value = '';
+  ['ov','ch','an','dt'].forEach(function(p){
+    var s=document.getElementById(p+'-start'), e=document.getElementById(p+'-end');
+    if(s) s.value=''; if(e) e.value='';
+  });
   document.getElementById('dt-sku').value = '';
   document.getElementById('dt-status').value = '';
   refreshDetail();
@@ -1891,23 +1899,36 @@ function _debounce(key, fn, delay) {
 
 function setupAutoRefresh() {
   var el;
+  // Sync dates across all tabs when changed
+  function syncDates(prefix) {
+    var sv = document.getElementById(prefix+'-start').value;
+    var ev = document.getElementById(prefix+'-end').value;
+    ['ov','ch','an','dt'].forEach(function(p) {
+      if (p !== prefix) {
+        var s = document.getElementById(p+'-start');
+        var e = document.getElementById(p+'-end');
+        if (s) s.value = sv;
+        if (e) e.value = ev;
+      }
+    });
+  }
   // Overview
-  el = document.getElementById('ov-start');    if (el) el.addEventListener('change', applyOverview);
-  el = document.getElementById('ov-end');      if (el) el.addEventListener('change', applyOverview);
+  el = document.getElementById('ov-start');    if (el) el.addEventListener('change', function(){ syncDates('ov'); applyOverview(); });
+  el = document.getElementById('ov-end');      if (el) el.addEventListener('change', function(){ syncDates('ov'); applyOverview(); });
   el = document.getElementById('ov-granularity'); if (el) el.addEventListener('change', applyOverview);
   el = document.getElementById('ov-sku');       if (el) el.addEventListener('input', _debounce('ov-sku', applyOverview, 400));
   // Charts
-  el = document.getElementById('ch-start');    if (el) el.addEventListener('change', applyCharts);
-  el = document.getElementById('ch-end');      if (el) el.addEventListener('change', applyCharts);
+  el = document.getElementById('ch-start');    if (el) el.addEventListener('change', function(){ syncDates('ch'); applyCharts(); });
+  el = document.getElementById('ch-end');      if (el) el.addEventListener('change', function(){ syncDates('ch'); applyCharts(); });
   el = document.getElementById('ch-granularity'); if (el) el.addEventListener('change', applyCharts);
   el = document.getElementById('ch-sku');       if (el) el.addEventListener('input', _debounce('ch-sku', applyCharts, 400));
   // Analysis
-  el = document.getElementById('an-start');     if (el) el.addEventListener('change', applyAnalysis);
-  el = document.getElementById('an-end');       if (el) el.addEventListener('change', applyAnalysis);
+  el = document.getElementById('an-start');     if (el) el.addEventListener('change', function(){ syncDates('an'); applyAnalysis(); });
+  el = document.getElementById('an-end');       if (el) el.addEventListener('change', function(){ syncDates('an'); applyAnalysis(); });
   el = document.getElementById('an-sku');       if (el) el.addEventListener('input', _debounce('an-sku', applyAnalysis, 400));
   // Detail
-  el = document.getElementById('dt-start');     if (el) el.addEventListener('change', applyDetail);
-  el = document.getElementById('dt-end');       if (el) el.addEventListener('change', applyDetail);
+  el = document.getElementById('dt-start');     if (el) el.addEventListener('change', function(){ syncDates('dt'); applyDetail(); });
+  el = document.getElementById('dt-end');       if (el) el.addEventListener('change', function(){ syncDates('dt'); applyDetail(); });
   el = document.getElementById('dt-sku');       if (el) el.addEventListener('input', _debounce('dt-sku', applyDetail, 400));
   el = document.getElementById('dt-status');     if (el) el.addEventListener('change', applyDetail);
 }
