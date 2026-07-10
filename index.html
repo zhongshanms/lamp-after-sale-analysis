@@ -964,7 +964,7 @@ async function rebuildFromUploadDB(type) {
           create_date: String(row[8] || ''),
           order_time: String(row[7] || ''),
           order_id: '',
-          responsibility: '',
+          responsibility: String(row[3] || ''),
           year: records[i].year || 0,
         };
       } else {
