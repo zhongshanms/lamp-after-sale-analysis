@@ -572,6 +572,11 @@ async function loadData() {
     refreshDetail();
     refreshDBStatus();
     showToast('✅ 所有数据已清空，可上传新数据', 'success');
+    // Also clear cache so it won't reload on next visit
+    try {
+      let cdb = getDataCacheDB();
+      await cdb.cache.delete('compact_data');
+    } catch(e) {}
     return;
   }
 
