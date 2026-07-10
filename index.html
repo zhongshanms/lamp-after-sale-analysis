@@ -990,6 +990,89 @@ async function mergeUploadedData() {
   }
 }
 
+// Rebuild gAfterSale or gSales from UploadDB for specified type
+async function rebuildFromUploadDB(type) {
+  console.log('[REBUILD] rebuildFromUploadDB: ' + type);
+  debugLog('[Rebuild] 从 UploadDB 重建 ' + (type === 'after' ? '售后' : '销量') + ' 数据...');
+  try {
+    var db = getUploadDB();
+    var records = await db.records.where({type: type}).toArray();
+    console.log('[REBUILD] UploadDB ' + type + ' records:', records.length);
+
+    var seen = new Set();
+    var result = [];
+
+    for (var i = 0; i < records.length; i++) {
+      var row = records[i].data;
+      if (!row) continue;
+
+      if (type === 'after') {
+        var tid = row.ticket_id || row['工单号'] || row['Ticket ID'] || row['售后工单单号'] || '';
+        if (!tid) continue;
+        var normalized = {
+          ticket_id: tid,
+          after_sale_type: row.after_sale_type || row['售后类型'] || row['After Sale Type'] || '',
+          product_name: row.product_name || row['商品名称'] || row['Product Name'] || '',
+          sku: row.sku || row['SKU'] || row['Sku'] || '',
+          reason: row.reason || row['售后原因'] || row['Reason'] || '',
+          refund_status: row.refund_status || row['退款状态'] || row['Refund Status'] || '',
+          order_amount: parseFloat(row.order_amount || row['订单金额'] || 0) || 0,
+          refund_amount: parseFloat(row.refund_amount || row['退款金额'] || row['Refund Amount'] || 0) || 0,
+          return_qty: parseInt(row.return_qty || row['退货数量'] || row['Return Qty'] || 1) || 1,
+          tag: row.tag || row['标签'] || row['Tag'] || '',
+          create_time: row.create_time || row.create_date || row['创建时间'] || row['Create Date'] || '',
+          create_date: row.create_date || row.create_time || row['创建时间'] || row['Create Date'] || '',
+          order_time: row.order_time || row['订购时间'] || row['下单时间'] || '',
+          order_id: row.order_id || row['订单号'] || '',
+          responsibility: row.responsibility || row.resp_party || row['责任方'] || row['Responsibility'] || '',
+          year: records[i].year || 0,
+        };
+      } else {
+        var d = row.date || row['日期'] || row['Date'] || row['时间'] || '';
+        var s = row.sku || row['SKU'] || '';
+        if (!d || !s) continue;
+        var normalized = {
+          date: d, date_date: d, sku: s,
+          product_name: row.product_name || row['商品名称'] || row['Product Name'] || '',
+          title: row.title || row['标题'] || '',
+          attribute: row.attribute || row['属性'] || '',
+          shop: row.shop || row['店铺'] || '',
+          platform: row.platform || row['平台'] || '',
+          sales_qty: parseInt(row.sales_qty || row['销量'] || row['Sales Qty'] || 0) || 0,
+          order_qty: parseInt(row.order_qty || row['订单量'] || row['Order Qty'] || 1) || 1,
+          revenue: parseFloat(row.revenue || row['收入'] || 0) || 0,
+          formatted_revenue: '', year: records[i].year || 0,
+          refund_amount: 0, return_qty: 0, refund_status: '', reason: '', tag: '', after_sale_type: '',
+        };
+      }
+
+      var key = JSON.stringify(Object.entries(normalized).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)]));
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(normalized);
+      }
+    }
+
+    if (type === 'after') {
+      gAfterSale = result;
+    } else {
+      gSales = result;
+    }
+
+    debugLog('[Rebuild] ' + (type === 'after' ? '售后' : '销量') + ' 重建完成: ' + result.length + ' 条 (UploadDB=' + records.length + ' 去重后)');
+    console.log('[REBUILD] ' + type + ' rebuilt: ' + result.length + ' records (from ' + records.length + ')');
+
+    // Invalidate DataCache
+    try {
+      var cacheDB = getDataCacheDB();
+      await cacheDB.cache.delete('compact_data');
+    } catch(ec) {}
+  } catch(e) {
+    console.error('[REBUILD] Failed:', e);
+    debugLog('[Rebuild] 重建失败: ' + e, 'error');
+  }
+}
+
 async function initData(json) {
   json = expandCompact(json);
   gData = json;
@@ -1698,9 +1781,9 @@ function processUpload(file, type) {
 
         // Refresh page data with newly uploaded records
         if (newRecords.length > 0) {
-          console.log('[UPLOAD] Calling mergeUploadedData...');
-          debugLog('开始合并上传数据到内存... (' + type + ':' + newRecords.length + '条新记录)');
-          await mergeUploadedData();
+          console.log('[UPLOAD] Calling rebuildFromUploadDB for type=' + type + '...');
+          debugLog('从 UploadDB 重建内存数据... (' + type + ')');
+          await rebuildFromUploadDB(type);
           // Update status bar
           document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
           document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
