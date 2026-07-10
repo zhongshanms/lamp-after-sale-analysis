@@ -944,6 +944,18 @@ async function rebuildFromUploadDB(type) {
     for (var i = 0; i < records.length; i++) {
       var row = records[i].data;
       if (!row) continue;
+      // Handle array-format old data (from previous sheet_to_json default)
+      if (Array.isArray(row)) {
+        if (type === 'after' && row.length >= 5) {
+          row = {
+            '售后工单单号': row[0], '售后类型': row[1], 'Sku': row[2],
+            '售后原因': row[3], '退款状态': row[4], '退货数量': row[5],
+            '标签': row[6], '订购时间': row[7], '创建时间': row[8]
+          };
+        } else if (type === 'sales' && row.length >= 3) {
+          row = {'时间': row[0], 'SKU': row[1], '销量': row[2], '订单量': row[3]};
+        }
+      }
 
       if (type === 'after') {
         var tid = row.ticket_id || row['工单号'] || row['Ticket ID'] || row['售后工单单号'] || '';
@@ -1666,9 +1678,15 @@ function processUpload(file, type) {
     try {
       let wb = XLSX.read(e.target.result, {type:'array'});
       let sheet = wb.Sheets[wb.SheetNames[0]];
-      let json = XLSX.utils.sheet_to_json(sheet);
+      let aoa = XLSX.utils.sheet_to_json(sheet, {header: 1});
+      let headers = aoa[0] || [];
+      let json = aoa.slice(1).map(row => {
+        let obj = {};
+        headers.forEach((h, i) => { if (h) obj[h] = row[i]; });
+        return obj;
+      }).filter(row => Object.keys(row).length > 0);
       let recordCount = json.length;
-      statusEl.textContent = `解析完成: ${recordCount} 条记录`;
+      statusEl.textContent = `解析完成: ${recordCount} 条记录 (原始${aoa.length-1}行含表头)`;
 
       let year = document.getElementById(type === 'after' ? 'yearAfter' : 'yearSales').value;
       let recType = type === 'after' ? '售后工单' : '销量数据';
