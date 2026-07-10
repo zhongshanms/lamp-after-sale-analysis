@@ -576,6 +576,31 @@ async function loadData() {
     return;
   }
 
+  // ── Step 0b: If user has uploaded data, use UploadDB instead of prebuilt data ──
+  try {
+    let udb = getUploadDB();
+    let afterCount = await udb.records.where({type: 'after'}).count();
+    let salesCount = await udb.records.where({type: 'sales'}).count();
+    if (afterCount > 0 || salesCount > 0) {
+      if (detailEl) detailEl.textContent = '正在加载上传数据...';
+      console.log('[LOAD] UploadDB has data: after=' + afterCount + ' sales=' + salesCount);
+      if (afterCount > 0) await rebuildFromUploadDB('after');
+      if (salesCount > 0) await rebuildFromUploadDB('sales');
+      document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
+      document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
+      updateDateRangeLabel();
+      refreshOverview();
+      refreshCharts();
+      refreshAnalysis();
+      refreshDetail();
+      refreshDBStatus();
+      debugLog('数据来源: UploadDB 用户上传数据 (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
+      return;
+    }
+  } catch(e) {
+    console.warn('UploadDB check failed:', e);
+  }
+
   // ── Step 0: Try IndexedDB cache FIRST (fastest path, even without network) ──
   if (detailEl) detailEl.textContent = '正在加载数据...';
   try {
