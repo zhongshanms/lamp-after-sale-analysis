@@ -1474,9 +1474,19 @@ function applyChartsWithParams(start, end, granularity, skuTerm) {
   let rl = Object.keys(reasonMap).sort((a,b) => reasonMap[b]-reasonMap[a]).slice(0,10);
   makeHorizontalBar('chart4', rl, rl.map(r => reasonMap[r]), '工单数');
 
-  // Chart 5: 责任方分布（环形图）
+  // Chart 5: 责任方分布（环形图）— 从售后原因前缀提取责任归属
   let respMap = {};
-  afterF.forEach(r => { let t = (r.responsibility && r.responsibility.trim()) ? r.responsibility : '未分类'; respMap[t] = (respMap[t]||0) + 1; });
+  afterF.forEach(r => {
+    let reason = (r.reason || '').trim();
+    let resp = '未知';
+    if (reason.startsWith('客户')) resp = '客户';
+    else if (reason.startsWith('产品') || reason.startsWith('品质') || reason.startsWith('A产品')) resp = '品控';
+    else if (reason.startsWith('第三方') || reason.startsWith('物流')) resp = '物流';
+    else if (reason.startsWith('越兴')) resp = '采购';
+    else if (reason.startsWith('发错货') || reason.startsWith('发错')) resp = '仓库';
+    else if (reason.startsWith('描述')) resp = '运营';
+    respMap[resp] = (respMap[resp]||0) + 1;
+  });
   let rpLabels = Object.keys(respMap).sort((a,b) => respMap[b]-respMap[a]);
   makePieChart('chart5', rpLabels, rpLabels.map(l => respMap[l]));
 }
