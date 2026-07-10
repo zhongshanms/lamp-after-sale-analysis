@@ -316,6 +316,7 @@ tbody tr:hover{background:#f8f9ff}
     <label>日期:</label><input type="date" id="dt-start">
     <label>至</label><input type="date" id="dt-end">
     <label>SKU:</label><input type="text" id="dt-sku" placeholder="搜索SKU...">
+    <label>原因:</label><input type="text" id="dt-reason" placeholder="搜索售后原因...">
     <label>状态:</label><select id="dt-status"><option value="">全部</option></select>
     <button class="btn btn-outline" onclick="resetDetail()">🔄 重置</button>
   </div>
@@ -1558,6 +1559,7 @@ function resetDetail() {
   });
   document.getElementById('dt-sku').value = '';
   document.getElementById('dt-status').value = '';
+  document.getElementById('dt-reason').value = '';
   refreshDetail();
 }
 
@@ -1572,9 +1574,11 @@ function applyDetailWithParams() {
   let end = document.getElementById('dt-end').value;
   let skuTerm = document.getElementById('dt-sku').value.trim();
   let statusFilter = document.getElementById('dt-status').value;
+  let reasonTerm = document.getElementById('dt-reason').value.trim();
 
   let afterF = filterAfterSale(start, end, skuTerm);
   if (statusFilter) afterF = afterF.filter(r => r.refund_status === statusFilter);
+  if (reasonTerm) afterF = afterF.filter(r => r.reason && r.reason.includes(reasonTerm));
 
   // Sort
   afterF.sort((a,b) => {
@@ -1931,6 +1935,7 @@ function setupAutoRefresh() {
   el = document.getElementById('dt-end');       if (el) el.addEventListener('change', function(){ syncDates('dt'); applyDetail(); });
   el = document.getElementById('dt-sku');       if (el) el.addEventListener('input', _debounce('dt-sku', applyDetail, 400));
   el = document.getElementById('dt-status');     if (el) el.addEventListener('change', applyDetail);
+  el = document.getElementById('dt-reason');    if (el) el.addEventListener('input', _debounce('dt-reason', applyDetail, 400));
 }
 
 // ========== INIT ==========
