@@ -1541,7 +1541,6 @@ function applyAnalysisWithParams(start, end, skuTerm) {
   document.getElementById('analysisSku').innerHTML = skuArr.map(([k,v],i) =>
     `<tr><td>${i+1}</td><td title="${k}">${k}</td><td style="text-align:right">${fmtNum(v.count)}</td><td style="text-align:right">${fmtNum(v.returnQty)}</td></tr>`
   ).join('');
-  ).join('');
 }
 
 // ========== DETAIL TAB ==========
