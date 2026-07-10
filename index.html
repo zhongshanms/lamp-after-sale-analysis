@@ -307,7 +307,7 @@ tbody tr:hover{background:#f8f9ff}
     <button class="btn btn-outline" onclick="resetAnalysis()">🔄 重置</button>
   </div>
   <div class="data-table-wrap"><h3>一、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>标签</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
-  <div class="data-table-wrap"><h3>二、售后数量 TOP30 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>商品名称</th><th>工单数</th><th>售后总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>二、售后数量 TOP30 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>工单数</th><th>售后总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
 </div>
 
 <!-- Tab: Detail -->
@@ -1531,14 +1531,14 @@ function applyAnalysisWithParams(start, end, skuTerm) {
   // 二、售后数量 TOP30 SKU
   let skuMap = {};
   afterF.forEach(r => {
-    if (!skuMap[r.sku]) skuMap[r.sku] = { name: r.product_name, count:0, returnQty:0, refundAmt:0 };
+    if (!skuMap[r.sku]) skuMap[r.sku] = { count:0, returnQty:0, refundAmt:0 };
     skuMap[r.sku].count++;
     skuMap[r.sku].returnQty += (r.return_qty||0);
     skuMap[r.sku].refundAmt += (r.refund_amount||0);
   });
   let skuArr = Object.entries(skuMap).sort((a,b) => b[1].returnQty-a[1].returnQty).slice(0,30);
   document.getElementById('analysisSku').innerHTML = skuArr.map(([k,v],i) =>
-    `<tr><td>${i+1}</td><td>${k}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${v.name}</td><td>${fmtNum(v.count)}</td><td>${fmtNum(v.returnQty)}</td></tr>`
+    `<tr><td>${i+1}</td><td>${k}</td><td>${fmtNum(v.count)}</td><td>${fmtNum(v.returnQty)}</td></tr>`
   ).join('');
 }
 
