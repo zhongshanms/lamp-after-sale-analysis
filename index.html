@@ -593,18 +593,6 @@ async function loadData() {
   refreshOverview(); refreshCharts(); refreshAnalysis(); refreshDetail(); refreshDBStatus();
   debugLog('暂无数据，请上传 Excel 文件', 'warn');
 }
-      showToast('网络不可用，已使用本地缓存数据（可能不是最新）', 'warn');
-      console.log('Fallback: loaded from IndexedDB cache as last resort');
-      return;
-    }
-  } catch(e) {}
-
-  // Truly nothing worked
-  console.error('All data sources exhausted');
-  document.getElementById('status-after').textContent = '售后: 加载失败';
-  document.getElementById('status-sales').textContent = '销量: 加载失败';
-  showToast('数据加载失败，请检查网络连接后刷新页面', 'error');
-}
 
 // Background: fetch latest version and update cache if needed
 function checkVersionInBackground(currentData) {
