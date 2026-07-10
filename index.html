@@ -844,22 +844,18 @@ async function mergeUploadedData() {
       debugLog('[Merge#' + callNum + '] 无售后和销量记录', 'error');
     }
 
-    // Build existing key sets for dedup
+    // Build existing key sets for dedup (full row comparison)
     var existingAfterKeys = new Set();
-    var afterKeysDebug = { total: gAfterSale.length, withTicketId: 0 };
     gAfterSale.forEach(function(r) {
-      if (r.ticket_id) { existingAfterKeys.add(r.ticket_id); afterKeysDebug.withTicketId++; }
+      existingAfterKeys.add(JSON.stringify(Object.entries(r).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)])));
     });
-    console.log('[MERGE]   Existing after-sale keys: ' + afterKeysDebug.withTicketId + ' / ' + afterKeysDebug.total);
+    console.log('[MERGE]   Existing after-sale keys: ' + existingAfterKeys.size + ' / ' + gAfterSale.length);
 
     var existingSalesKeys = new Set();
-    var salesKeysDebug = { total: gSales.length, withKey: 0 };
     gSales.forEach(function(r) {
-      var d = r.date_date || r.date || '';
-      var s = r.sku || '';
-      if (d && s) { existingSalesKeys.add(d + '||' + s); salesKeysDebug.withKey++; }
+      existingSalesKeys.add(JSON.stringify(Object.entries(r).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)])));
     });
-    console.log('[MERGE]   Existing sales keys: ' + salesKeysDebug.withKey + ' / ' + salesKeysDebug.total);
+    console.log('[MERGE]   Existing sales keys: ' + existingSalesKeys.size + ' / ' + gSales.length);
 
     var afterAdded = 0, afterSkipped = 0, afterNoKey = 0;
     var salesAdded = 0, salesSkipped = 0, salesNoKey = 0;
@@ -883,13 +879,7 @@ async function mergeUploadedData() {
       if (rec.type === 'after') {
         var tid = row.ticket_id || row['工单号'] || row['Ticket ID'] || row['售后工单单号'] || '';
         if (!tid) { afterNoKey++; return; }
-        if (existingAfterKeys.has(tid)) {
-          afterSkipped++;
-          if (sampleSkippedAfter.length < 5) sampleSkippedAfter.push(tid.substring(0, 30));
-          return;
-        }
-        existingAfterKeys.add(tid);
-        gAfterSale.push({
+        var normalized = {
           ticket_id: tid,
           after_sale_type: row.after_sale_type || row['售后类型'] || row['After Sale Type'] || '',
           product_name: row.product_name || row['商品名称'] || row['Product Name'] || '',
@@ -906,20 +896,20 @@ async function mergeUploadedData() {
           order_id: row.order_id || row['订单号'] || '',
           responsibility: row.responsibility || row.resp_party || row['责任方'] || row['Responsibility'] || '',
           year: rec.year || 0,
-        });
+        };
+        var rowKey = JSON.stringify(Object.entries(normalized).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)]));
+        if (existingAfterKeys.has(rowKey)) {
+          afterSkipped++;
+          return;
+        }
+        existingAfterKeys.add(rowKey);
+        gAfterSale.push(normalized);
         afterAdded++;
       } else if (rec.type === 'sales') {
         var d = row.date || row['日期'] || row['Date'] || row['时间'] || '';
         var s = row.sku || row['SKU'] || '';
-        var uk = d + '||' + s;
         if (!d || !s) { salesNoKey++; return; }
-        if (existingSalesKeys.has(uk)) {
-          salesSkipped++;
-          if (sampleSkippedSales.length < 5) sampleSkippedSales.push(uk.substring(0, 40));
-          return;
-        }
-        existingSalesKeys.add(uk);
-        gSales.push({
+        var normalized = {
           date: d, date_date: d, sku: s,
           product_name: row.product_name || row['商品名称'] || row['Product Name'] || '',
           title: row.title || row['标题'] || '',
@@ -931,7 +921,14 @@ async function mergeUploadedData() {
           revenue: parseFloat(row.revenue || row['收入'] || 0) || 0,
           formatted_revenue: '', year: rec.year || 0,
           refund_amount: 0, return_qty: 0, refund_status: '', reason: '', tag: '', after_sale_type: '',
-        });
+        };
+        var rowKey = JSON.stringify(Object.entries(normalized).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)]));
+        if (existingSalesKeys.has(rowKey)) {
+          salesSkipped++;
+          return;
+        }
+        existingSalesKeys.add(rowKey);
+        gSales.push(normalized);
         salesAdded++;
       } else {
         otherType++;
@@ -1658,35 +1655,21 @@ function processUpload(file, type) {
         let db = getUploadDB();
         let yearNum = parseInt(year);
 
-        // Query existing unique keys for this type
+        // Query existing unique keys for this type (full row comparison)
         let existingRecords = await db.records.where({type: type}).toArray();
         let existingKeys = new Set();
-        if (type === 'after') {
-          // 售后工单: 按 ticket_id/工单号/Ticket ID/售后工单单号 去重
-          existingRecords.forEach(r => { if (r.data && (r.data.ticket_id || r.data['工单号'] || r.data['Ticket ID'] || r.data['售后工单单号'])) existingKeys.add(r.data.ticket_id || r.data['工单号'] || r.data['Ticket ID'] || r.data['售后工单单号']); });
-        } else {
-          // 销量数据: 按 date/日期/Date/时间||sku/SKU 去重
-          existingRecords.forEach(r => { if (r.data && (r.data.date || r.data['日期'] || r.data['Date'] || r.data['时间']) && (r.data.sku || r.data['SKU'])) existingKeys.add((r.data.date || r.data['日期'] || r.data['Date'] || r.data['时间']) + '||' + (r.data.sku || r.data['SKU'])); });
-        }
+        existingRecords.forEach(r => {
+          if (r.data) existingKeys.add(JSON.stringify(Object.entries(r.data).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)])));
+        });
 
-        // Filter: only keep new records
+        // Filter: only keep new records (full row comparison)
         let newRecords = [];
         let skipped = 0;
-        if (type === 'after') {
-          json.forEach(row => {
-            var uk = row.ticket_id || row['工单号'] || row['Ticket ID'] || row['售后工单单号'] || '';
-            if (uk && existingKeys.has(uk)) { skipped++; }
-            else { newRecords.push(row); if (uk) existingKeys.add(uk); }
-          });
-        } else {
-          json.forEach(row => {
-            var d = row.date || row['日期'] || row['Date'] || row['时间'] || '';
-            var s = row.sku || row['SKU'] || '';
-            var uk = (d && s) ? (d + '||' + s) : '';
-            if (uk && existingKeys.has(uk)) { skipped++; }
-            else { newRecords.push(row); if (uk) existingKeys.add(uk); }
-          });
-        }
+        json.forEach(row => {
+          var uk = JSON.stringify(Object.entries(row).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)]));
+          if (existingKeys.has(uk)) { skipped++; }
+          else { newRecords.push(row); existingKeys.add(uk); }
+        });
 
         // Insert only new records in batches
         let batchSize = 500;
