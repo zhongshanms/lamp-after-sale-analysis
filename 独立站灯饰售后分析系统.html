@@ -245,6 +245,16 @@ tbody tr:hover{background:#f8f9ff}
       <span class="text-muted" style="margin-left:8px;font-size:var(--font-sm)">清空所有数据（含预置数据），页面变为空白后可重新上传</span>
     </div>
   </div>
+  <div class="chart-section" style="margin-top:24px">
+    <h3>☁️ 云端同步</h3>
+    <p class="text-muted" style="font-size:var(--font-sm);margin-bottom:12px">上传数据后一键同步到 GitHub，所有设备（含手机）立即可用</p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <input type="password" id="githubToken" placeholder="GitHub Personal Access Token" style="flex:1;min-width:260px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:var(--font-sm);font-family:monospace">
+      <button class="btn btn-primary" id="btnSync" onclick="syncToGitHub()" disabled style="background:var(--primary);color:#fff;padding:8px 20px;border-radius:var(--radius-sm);font-size:var(--font-sm)">🔄 同步到云端</button>
+    </div>
+    <div id="syncStatus" style="margin-top:8px;font-size:var(--font-sm)"></div>
+    <p class="text-muted" style="font-size:0.75rem;margin-top:8px">Token 获取: GitHub → Settings → Developer settings → Tokens (classic) → 勾选 repo 权限生成</p>
+  </div>
   <div class="debug-panel-toggle" id="debugToggle" onclick="toggleDebug()" style="display:none">🔧 显示诊断日志</div>
   <div class="debug-panel" id="debugPanel"><div class="entry info"><span class="time">--:--</span>诊断日志就绪，上传文件后显示合并结果</div></div>
 </div>
@@ -2025,7 +2035,124 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('js-error-banner').style.display = 'block';
     document.getElementById('js-error-banner').textContent = '⚠️ 页面初始化失败: ' + err.message + ' — 请刷新页面';
   }
+
+  // ── 初始化云端同步 Token ──
+  (function() {
+    var saved = localStorage.getItem(GH_SYNC_TOKEN_KEY);
+    var tokenEl = document.getElementById('githubToken');
+    var btn = document.getElementById('btnSync');
+    if (saved && tokenEl) { tokenEl.value = saved; if (btn) btn.disabled = false; }
+    if (tokenEl) {
+      tokenEl.addEventListener('input', function() {
+        localStorage.setItem(GH_SYNC_TOKEN_KEY, tokenEl.value.trim());
+        if (btn) btn.disabled = !tokenEl.value.trim();
+      });
+    }
+  })();
 });
+
+// ========== CLOUD SYNC TO GITHUB ==========
+var GH_SYNC_TOKEN_KEY = 'gh_sync_token';
+var GH_REPO_API = 'https://api.github.com/repos/zhongshanms/lamp-after-sale-analysis/contents/data/after-sale-data-compact.json';
+
+function compactAfterSale(records) {
+  return records.map(function(r) {
+    var o = {};
+    if (r.ticket_id) o.tid = r.ticket_id;
+    if (r.after_sale_type) o.t = r.after_sale_type;
+    if (r.product_name) o.p = r.product_name;
+    if (r.sku) o.sku = r.sku;
+    if (r.reason) o.r = r.reason;
+    if (r.refund_status) o.rs = r.refund_status;
+    if (r.order_amount) o.oa = r.order_amount;
+    if (r.refund_amount) o.ra = r.refund_amount;
+    if (r.return_qty) o.rq = r.return_qty;
+    if (r.tag) o.tg = r.tag;
+    if (r.create_date) o.ct = r.create_date;
+    if (r.responsibility) o.resp = r.responsibility;
+    if (r.year) o.y = r.year;
+    return o;
+  });
+}
+
+function compactSales(records) {
+  return records.map(function(r) {
+    var o = {};
+    if (r.date_date) o.d = r.date_date;
+    if (r.sku) o.sku = r.sku;
+    if (r.product_name) o.pn = r.product_name;
+    if (r.platform) o.pf = r.platform;
+    if (r.sales_qty) o.sq = r.sales_qty;
+    if (r.order_qty) o.oq = r.order_qty;
+    if (r.revenue) o.rv = r.revenue;
+    if (r.formatted_revenue) o.fr = r.formatted_revenue;
+    if (r.year) o.y = r.year;
+    return o;
+  });
+}
+
+function buildCompactJSON() {
+  return {
+    m: (gData && gData.meta) || (gData && gData.m) || {},
+    ys: (gData && gData.year_summary) || (gData && gData.ys) || {},
+    st: (gData && gData.statistics) || (gData && gData.st) || {},
+    ar: compactAfterSale(gAfterSale),
+    sr: compactSales(gSales)
+  };
+}
+
+async function syncToGitHub() {
+  var token = document.getElementById('githubToken').value.trim();
+  var statusEl = document.getElementById('syncStatus');
+  var btn = document.getElementById('btnSync');
+
+  if (!token) { statusEl.innerHTML = '<span style="color:var(--danger)">请先输入 GitHub Token</span>'; return; }
+  if (gAfterSale.length === 0 && gSales.length === 0) {
+    statusEl.innerHTML = '<span style="color:var(--warning)">没有数据可同步，请先上传数据</span>';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ 同步中...';
+  statusEl.innerHTML = '<span style="color:var(--info)">正在准备数据...</span>';
+
+  try {
+    var compact = buildCompactJSON();
+    var jsonStr = JSON.stringify(compact);
+    var contentBase64 = btoa(unescape(encodeURIComponent(jsonStr)));
+
+    var headers = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3+json' };
+
+    // Step 1: 获取当前文件 SHA
+    statusEl.innerHTML = '<span style="color:var(--info)">正在获取文件信息...</span>';
+    var getResp = await fetch(GH_REPO_API, { headers: headers });
+    if (!getResp.ok) throw new Error('获取文件失败 HTTP ' + getResp.status);
+    var fileInfo = await getResp.json();
+
+    // Step 2: 上传数据
+    statusEl.innerHTML = '<span style="color:var(--info)">正在上传数据 (' + (contentBase64.length / 1024).toFixed(0) + 'KB)...</span>';
+    var putResp = await fetch(GH_REPO_API, {
+      method: 'PUT',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
+      body: JSON.stringify({
+        message: 'data sync: ' + gAfterSale.length + ' after-sale + ' + gSales.length + ' sales',
+        content: contentBase64,
+        sha: fileInfo.sha
+      })
+    });
+
+    if (!putResp.ok) {
+      var errData = await putResp.json();
+      throw new Error(errData.message || '上传失败 HTTP ' + putResp.status);
+    }
+
+    statusEl.innerHTML = '<span style="color:var(--success)">✅ 同步成功！售后 ' + gAfterSale.length + ' 条 + 销量 ' + gSales.length + ' 条。1-2分钟后所有设备（含手机）自动更新。</span>';
+    showToast('✅ 云端同步成功！所有设备即将更新', 'success');
+  } catch(e) {
+    statusEl.innerHTML = '<span style="color:var(--danger)">❌ 同步失败: ' + e.message + '</span>';
+    console.error('syncToGitHub error:', e);
+  }
+  btn.disabled = false; btn.textContent = '🔄 同步到云端';
+}
 </script>
 </body>
 </html>
