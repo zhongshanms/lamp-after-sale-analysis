@@ -2146,26 +2146,57 @@ async function syncToGitHub() {
   }
 
   btn.disabled = true; btn.textContent = '⏳ 同步中...';
-  statusEl.innerHTML = '<span style="color:var(--info)">正在准备数据...</span>';
+  statusEl.innerHTML = '<span style="color:var(--info)">正在检测网络连通性...</span>';
 
   try {
+    // ── 先检测 api.github.com 是否可达 ──
+    try {
+      var connTest = await fetch('https://api.github.com', { mode: 'cors' });
+    } catch(ce) {
+      throw new Error('无法连接到 api.github.com（' + (ce.message || '网络不通') + '）。使用"导出 JSON"手动上传。');
+    }
+
+    statusEl.innerHTML = '<span style="color:var(--info)">正在准备数据...</span>';
     var compact = buildCompactJSON();
     var jsonStr = JSON.stringify(compact);
-    var contentBase64 = btoa(unescape(encodeURIComponent(jsonStr)));
+    var encoder = new TextEncoder();
+    var data = encoder.encode(jsonStr);
+    var contentBase64 = '';
+    var chunkSize = 0x8000;
+    for (var i = 0; i < data.length; i += chunkSize) {
+      var chunk = [];
+      for (var j = 0; j < Math.min(chunkSize, data.length - i); j++) {
+        chunk.push(data[i + j]);
+      }
+      contentBase64 += String.fromCharCode.apply(null, chunk);
+    }
+    contentBase64 = btoa(contentBase64);
 
-    var headers = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3+json' };
+    var headers = {
+      'Authorization': 'token ' + token,
+      'Accept': 'application/vnd.github.v3+json'
+    };
 
     // Step 1: 获取当前文件 SHA
     statusEl.innerHTML = '<span style="color:var(--info)">正在获取文件信息...</span>';
-    var getResp = await fetch(GH_REPO_API, { headers: headers });
-    if (!getResp.ok) throw new Error('获取文件失败 HTTP ' + getResp.status);
+    var getResp = await fetch(GH_REPO_API, { headers: headers, mode: 'cors' });
+    if (!getResp.ok) {
+      if (getResp.status === 401) throw new Error('Token 无效或已过期（HTTP 401）');
+      if (getResp.status === 404) throw new Error('仓库或文件不存在（HTTP 404），检查仓库名和路径');
+      throw new Error('获取文件失败 HTTP ' + getResp.status);
+    }
     var fileInfo = await getResp.json();
 
     // Step 2: 上传数据
     statusEl.innerHTML = '<span style="color:var(--info)">正在上传数据 (' + (contentBase64.length / 1024).toFixed(0) + 'KB)...</span>';
     var putResp = await fetch(GH_REPO_API, {
       method: 'PUT',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
+      mode: 'cors',
+      headers: {
+        'Authorization': 'token ' + token,
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.github.v3+json'
+      },
       body: JSON.stringify({
         message: 'data sync: ' + gAfterSale.length + ' after-sale + ' + gSales.length + ' sales',
         content: contentBase64,
@@ -2174,8 +2205,10 @@ async function syncToGitHub() {
     });
 
     if (!putResp.ok) {
-      var errData = await putResp.json();
-      throw new Error(errData.message || '上传失败 HTTP ' + putResp.status);
+      var errData;
+      try { errData = await putResp.json(); } catch(e) {}
+      var errMsg = (errData && errData.message) || ('上传失败 HTTP ' + putResp.status);
+      throw new Error(errMsg);
     }
 
     statusEl.innerHTML = '<span style="color:var(--success)">✅ 同步成功！售后 ' + gAfterSale.length + ' 条 + 销量 ' + gSales.length + ' 条。1-2分钟后所有设备（含手机）自动更新。</span>';
@@ -2183,7 +2216,7 @@ async function syncToGitHub() {
   } catch(e) {
     var msg = e.message || String(e);
     if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('TypeError')) {
-      msg = '网络请求被拦截（可能是绿盾/DLP）。请使用"导出 JSON"按钮，手动上传到 GitHub。';
+      msg = '网络请求被拦截。使用"导出 JSON"手动上传。';
     }
     statusEl.innerHTML = '<span style="color:var(--danger)">❌ 同步失败: ' + msg + '</span>';
     console.error('syncToGitHub error:', e);
