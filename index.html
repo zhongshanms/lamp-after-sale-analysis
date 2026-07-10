@@ -1707,7 +1707,7 @@ function processUpload(file, type) {
         statusEl.textContent = `累计: ${totalStored} 条 | 本次存入: ${json.length} 条`;
 
         // Refresh page data with newly uploaded records
-        if (newRecords.length > 0) {
+        if (json.length > 0) {
           console.log('[UPLOAD] Calling rebuildFromUploadDB for type=' + type + '...');
           debugLog('从 UploadDB 重建内存数据... (' + type + ')');
           await rebuildFromUploadDB(type);
