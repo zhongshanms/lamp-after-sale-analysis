@@ -1649,31 +1649,30 @@ function bindSuggest(inputId, dropdownId, field) {
     renderSuggest(dropdown, items, term || '');
   }
 
-  let blurTimer = null;
-  let selecting = false;
-
   input.addEventListener('focus', () => {
-    refresh('');  // 始终全量显示，不按输入过滤
+    refresh('');
   });
   input.addEventListener('blur', () => {
-    if (selecting) return;  // 正在选下拉项，暂不关闭
-    blurTimer = setTimeout(() => hideSuggest(dropdown), 150);
+    setTimeout(() => hideSuggest(dropdown), 200);
   });
 
   dropdown.addEventListener('mousedown', (e) => {
     let item = e.target.closest('.dt-suggest-item');
     if (!item) return;
     e.preventDefault();
-    selecting = true;
     let txt = item.getAttribute('data-text');
-    // 临时填值触发筛选
+    // 设值 → 直接触发筛选
     input.value = txt;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    // 清空并关闭
+    if (typeof _debounceTimers !== 'undefined' && _debounceTimers['dt-reason']) {
+      clearTimeout(_debounceTimers['dt-reason']);
+    }
+    if (typeof _debounceTimers !== 'undefined' && _debounceTimers['dt-tag']) {
+      clearTimeout(_debounceTimers['dt-tag']);
+    }
+    applyDetailWithParams();
+    // 筛选完成后清空，下次点击直接弹出下拉
     input.value = '';
     hideSuggest(dropdown);
-    input.focus();  // 焦点回到 input，方便下次点击
-    selecting = false;
   });
 }
 
