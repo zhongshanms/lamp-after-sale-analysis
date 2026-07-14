@@ -240,14 +240,20 @@ tbody tr:hover{background:#f8f9ff}
         <tbody id="dbStatusBody"><tr><td colspan="4" class="text-center text-muted">加载中...</td></tr></tbody>
       </table>
     </div>
-    <div class="mt-16 text-center">
-      <button class="btn btn-primary" onclick="syncToServer()">📥 导出数据文件</button>
-      <span class="text-muted" style="margin-left:8px;font-size:var(--font-sm)">导出后请通知我同步到 GitHub</span>
-    </div>
     <div class="mt-16 text-center" style="border-top:1px dashed #e0e0e0;padding-top:16px">
       <button class="btn btn-outline" onclick="resetUploadData()" style="color:#e15759;border-color:#e15759">🗑️ 清空全部数据</button>
       <span class="text-muted" style="margin-left:8px;font-size:var(--font-sm)">清空所有数据（含预置数据），页面变为空白后可重新上传</span>
     </div>
+  </div>
+  <div class="chart-section" style="margin-top:24px">
+    <h3>☁️ 云端同步</h3>
+    <p class="text-muted" style="font-size:var(--font-sm);margin-bottom:12px">上传数据后一键同步到 GitHub，所有设备（含手机）立即可用</p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <input type="password" id="githubToken" placeholder="GitHub Personal Access Token" style="flex:1;min-width:260px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:var(--font-sm);font-family:monospace">
+      <button class="btn btn-primary" id="btnSync" onclick="syncToGitHub()" disabled style="background:var(--primary);color:#fff;padding:8px 20px;border-radius:var(--radius-sm);font-size:var(--font-sm)">🔄 同步到云端</button>
+    </div>
+    <div id="syncStatus" style="margin-top:8px;font-size:var(--font-sm)"></div>
+    <p class="text-muted" style="font-size:0.75rem;margin-top:8px">Token 获取: GitHub → Settings → Developer settings → Tokens (classic) → 勾选 repo 权限生成</p>
   </div>
   <div class="debug-panel-toggle" id="debugToggle" onclick="toggleDebug()" style="display:none">🔧 显示诊断日志</div>
   <div class="debug-panel" id="debugPanel"><div class="entry info"><span class="time">--:--</span>诊断日志就绪，上传文件后显示合并结果</div></div>
@@ -310,8 +316,8 @@ tbody tr:hover{background:#f8f9ff}
     <label>SKU:</label><input type="text" id="an-sku" placeholder="搜索SKU...">
     <button class="btn btn-outline" onclick="resetAnalysis()">🔄 重置</button>
   </div>
-  <div class="data-table-wrap"><h3>一、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>标签</th><th>工单数</th><th>占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
-  <div class="data-table-wrap"><h3>二、售后数量 TOP30 SKU</h3><div class="table-scroll"><table><thead><tr><th>排名</th><th>SKU</th><th>商品名称</th><th>工单数</th><th>售后总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>一、标签分布 TOP30</h3><div class="table-scroll"><table><thead><tr><th style="width:5%">#</th><th style="width:60%">标签</th><th style="width:18%;text-align:right">工单数</th><th style="width:17%;text-align:right">占比</th></tr></thead><tbody id="analysisTag"></tbody></table></div></div>
+  <div class="data-table-wrap"><h3>二、售后数量 TOP30 SKU</h3><div class="table-scroll"><table><thead><tr><th style="width:5%">#</th><th style="width:58%">SKU</th><th style="width:18%;text-align:right">工单数</th><th style="width:19%;text-align:right">售后总数</th></tr></thead><tbody id="analysisSku"></tbody></table></div></div>
 </div>
 
 <!-- Tab: Detail -->
@@ -320,6 +326,8 @@ tbody tr:hover{background:#f8f9ff}
     <label>日期:</label><input type="date" id="dt-start">
     <label>至</label><input type="date" id="dt-end">
     <label>SKU:</label><input type="text" id="dt-sku" placeholder="搜索SKU...">
+    <label>售后原因:</label><input type="text" id="dt-reason" placeholder="搜索售后原因...">
+    <label>标签:</label><input type="text" id="dt-tag" placeholder="搜索标签...">
     <label>状态:</label><select id="dt-status"><option value="">全部</option></select>
     <button class="btn btn-outline" onclick="resetDetail()">🔄 重置</button>
   </div>
@@ -412,7 +420,7 @@ function fmtNum(v) { return v != null ? Number(v).toLocaleString() : '0'; }
 function fmtPct(v, total) { return total > 0 ? (v/total*100).toFixed(1) + '%' : '0%'; }
 
 // ===== Debug Panel Helpers =====
-var APP_VERSION = '2026-06-21-v1-portable'; // bump on each deploy to detect stale cache
+var APP_VERSION = '2026-06-13-v3'; // bump on each deploy to detect stale cache
 var UPLOAD_SCHEMA_VER = 'v3-fixed-column-names'; // bump when field mapping changes → auto-clear UploadDB
 console.log('%c[APP] Version: ' + APP_VERSION, 'color:#4ec9b0;font-weight:bold');
 window.__debugLines = [];
@@ -558,117 +566,64 @@ async function loadData() {
   if (sessionStorage.getItem('data_reset_pending') === '1') {
     console.log('[RESET] Full reset mode: skipping all data loading');
     sessionStorage.removeItem('data_reset_pending');
-    gData = {};
-    gAfterSale = [];
-    gSales = [];
+    gData = {}; gAfterSale = []; gSales = [];
     document.getElementById('status-after').textContent = '售后: 0条';
     document.getElementById('status-sales').textContent = '销量: 0条';
-    // Hide loading overlay if present
     var overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.style.display = 'none';
-    refreshOverview();
-    refreshCharts();
-    refreshAnalysis();
-    refreshDetail();
-    refreshDBStatus();
+    refreshOverview(); refreshCharts(); refreshAnalysis(); refreshDetail(); refreshDBStatus();
     showToast('✅ 所有数据已清空，可上传新数据', 'success');
     return;
   }
 
-  // ── Step 0: Try IndexedDB cache FIRST (fastest path, even without network) ──
+  // ── Load from UploadDB only (user-uploaded data) ──
   if (detailEl) detailEl.textContent = '正在加载数据...';
   try {
-    let db = getDataCacheDB();
-    let cached = await db.cache.get('compact_data');
-    if (cached && cached.data) {
-      let json = JSON.parse(cached.data);
-      await initData(json);
-      console.log('Loaded from IndexedDB cache (instant)');
-      debugLog('数据来源: IndexedDB 缓存 (即时)', 'success');
-      // Background: check if newer version exists online
-      checkVersionInBackground(json);
-      return; // Success — instant!
+    let udb = getUploadDB();
+    let afterCount = await udb.records.where({type: 'after'}).count();
+    let salesCount = await udb.records.where({type: 'sales'}).count();
+    if (afterCount > 0 || salesCount > 0) {
+      if (afterCount > 0) await rebuildFromUploadDB('after');
+      if (salesCount > 0) await rebuildFromUploadDB('sales');
+      document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
+      document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
+      updateDateRangeLabel();
+      refreshOverview(); refreshCharts(); refreshAnalysis(); refreshDetail(); refreshDBStatus();
+      debugLog('数据来源: UploadDB 用户上传数据 (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
+      return;
     }
   } catch(e) {
-    console.warn('IndexedDB cache read failed:', e);
+    console.warn('UploadDB check failed:', e);
   }
 
-  // ── Step 1: Try local data/ folder FIRST (便携/离线模式) ──
-  if (detailEl) detailEl.textContent = '正在读取本地数据...';
+  // ── Fallback: load from compact JSON file ──
   try {
-    let localResp = await fetch('data/after-sale-data-compact.json', {cache:'no-store'});
-    if (localResp && localResp.ok) {
-      let json = await localResp.json();
+    if (detailEl) detailEl.textContent = '正在加载预置数据...';
+    let dataUrl = './data/after-sale-data-compact.json';
+    let resp = await fetchWithTimeout(dataUrl, 30000);
+    if (resp.ok) {
+      if (detailEl) detailEl.textContent = '正在解析数据...';
+      let json = await resp.json();
+      initData(json);
       cacheDataInBackground(json);
-      await initData(json);
-      console.log('Data loaded from local data/ folder (portable)');
-      debugLog('数据来源: 便携包本地 data/ 文件夹', 'success');
+      var overlay = document.getElementById('loading-overlay');
+      if (overlay) overlay.style.display = 'none';
+      debugLog('数据来源: 预置JSON文件 (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
       return;
     }
   } catch(e) {
-    console.log('Local data/ folder not found, trying network...');
+    console.warn('预置JSON加载失败:', e.message);
+    if (detailEl) detailEl.textContent = '预置数据加载失败: ' + e.message;
   }
 
-  // ── Step 2: No cache available, download from network ──
-  if (detailEl) detailEl.textContent = '正在下载数据 (约8.8MB)...';
-  let urls = [
-    window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '') + '/data/after-sale-data-compact.json',
-    'https://raw.githubusercontent.com/zhongshanms/lamp-after-sale-analysis/main/data/after-sale-data-compact.json',
-    'data/after-sale-data-compact.json',
-  ];
-
-  // Retry config: each URL gets up to 2 attempts with 2s delay between retries
-  let maxAttemptsPerUrl = 2;
-  let retryDelayMs = 2000;
-
-  for (let i = 0; i < urls.length; i++) {
-    for (let attempt = 1; attempt <= maxAttemptsPerUrl; attempt++) {
-      try {
-        console.log('Downloading from [' + i + '] #' + attempt + ':', urls[i]);
-        if (attempt > 1 && detailEl) detailEl.textContent = '重试下载中... (' + i + '/' + urls.length + ')';
-        let resp = await fetchWithTimeout(urls[i], 60000); // 60s timeout per attempt
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        let json = await resp.json();
-
-        // Cache for next visit (background)
-        cacheDataInBackground(json);
-
-        await initData(json);
-        console.log('Data loaded from URL [' + i + '] #' + attempt);
-        debugLog('数据来源: 网络下载 (' + urls[i] + ')', 'success');
-        return; // Success
-      } catch(e) {
-        console.warn('URL [' + i + '] #' + attempt + ' failed:', e.message);
-        if (attempt < maxAttemptsPerUrl && i < urls.length - 1) {
-          // Wait before retrying same URL
-          await new Promise(function(r) { setTimeout(r, retryDelayMs); });
-        } else if (attempt === maxAttemptsPerUrl && i < urls.length - 1) {
-          // Move to next URL after last attempt of current URL failed
-          await new Promise(function(r) { setTimeout(r, 1000); });
-        }
-      }
-    }
-  }
-
-  // All URLs exhausted — final attempt: try cache one more time (might have been written by another tab)
-  console.error('All download URLs failed, trying cache as last resort...');
-  try {
-    let db = getDataCacheDB();
-    let cached = await db.cache.get('compact_data');
-    if (cached && cached.data) {
-      let json = JSON.parse(cached.data);
-      await initData(json);
-      showToast('网络不可用，已使用本地缓存数据（可能不是最新）', 'warn');
-      console.log('Fallback: loaded from IndexedDB cache as last resort');
-      return;
-    }
-  } catch(e) {}
-
-  // Truly nothing worked
-  console.error('All data sources exhausted');
-  document.getElementById('status-after').textContent = '售后: 加载失败';
-  document.getElementById('status-sales').textContent = '销量: 加载失败';
-  showToast('数据加载失败，请检查网络连接后刷新页面', 'error');
+  // No data at all — show empty state
+  gData = {}; gAfterSale = []; gSales = [];
+  document.getElementById('status-after').textContent = '售后: 0条';
+  document.getElementById('status-sales').textContent = '销量: 0条';
+  var overlay = document.getElementById('loading-overlay');
+  if (overlay) overlay.style.display = 'none';
+  refreshOverview(); refreshCharts(); refreshAnalysis(); refreshDetail(); refreshDBStatus();
+  debugLog('暂无数据，请上传 Excel 文件', 'warn');
 }
 
 // Background: fetch latest version and update cache if needed
@@ -861,22 +816,18 @@ async function mergeUploadedData() {
       debugLog('[Merge#' + callNum + '] 无售后和销量记录', 'error');
     }
 
-    // Build existing key sets for dedup
+    // Build existing key sets for dedup (full row comparison)
     var existingAfterKeys = new Set();
-    var afterKeysDebug = { total: gAfterSale.length, withTicketId: 0 };
     gAfterSale.forEach(function(r) {
-      if (r.ticket_id) { existingAfterKeys.add(r.ticket_id); afterKeysDebug.withTicketId++; }
+      existingAfterKeys.add(JSON.stringify(Object.entries(r).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)])));
     });
-    console.log('[MERGE]   Existing after-sale keys: ' + afterKeysDebug.withTicketId + ' / ' + afterKeysDebug.total);
+    console.log('[MERGE]   Existing after-sale keys: ' + existingAfterKeys.size + ' / ' + gAfterSale.length);
 
     var existingSalesKeys = new Set();
-    var salesKeysDebug = { total: gSales.length, withKey: 0 };
     gSales.forEach(function(r) {
-      var d = r.date_date || r.date || '';
-      var s = r.sku || '';
-      if (d && s) { existingSalesKeys.add(d + '||' + s); salesKeysDebug.withKey++; }
+      existingSalesKeys.add(JSON.stringify(Object.entries(r).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)])));
     });
-    console.log('[MERGE]   Existing sales keys: ' + salesKeysDebug.withKey + ' / ' + salesKeysDebug.total);
+    console.log('[MERGE]   Existing sales keys: ' + existingSalesKeys.size + ' / ' + gSales.length);
 
     var afterAdded = 0, afterSkipped = 0, afterNoKey = 0;
     var salesAdded = 0, salesSkipped = 0, salesNoKey = 0;
@@ -900,13 +851,7 @@ async function mergeUploadedData() {
       if (rec.type === 'after') {
         var tid = row.ticket_id || row['工单号'] || row['Ticket ID'] || row['售后工单单号'] || '';
         if (!tid) { afterNoKey++; return; }
-        if (existingAfterKeys.has(tid)) {
-          afterSkipped++;
-          if (sampleSkippedAfter.length < 5) sampleSkippedAfter.push(tid.substring(0, 30));
-          return;
-        }
-        existingAfterKeys.add(tid);
-        gAfterSale.push({
+        var normalized = {
           ticket_id: tid,
           after_sale_type: row.after_sale_type || row['售后类型'] || row['After Sale Type'] || '',
           product_name: row.product_name || row['商品名称'] || row['Product Name'] || '',
@@ -923,20 +868,20 @@ async function mergeUploadedData() {
           order_id: row.order_id || row['订单号'] || '',
           responsibility: row.responsibility || row.resp_party || row['责任方'] || row['Responsibility'] || '',
           year: rec.year || 0,
-        });
+        };
+        var rowKey = JSON.stringify(Object.entries(normalized).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)]));
+        if (existingAfterKeys.has(rowKey)) {
+          afterSkipped++;
+          return;
+        }
+        existingAfterKeys.add(rowKey);
+        gAfterSale.push(normalized);
         afterAdded++;
       } else if (rec.type === 'sales') {
         var d = row.date || row['日期'] || row['Date'] || row['时间'] || '';
         var s = row.sku || row['SKU'] || '';
-        var uk = d + '||' + s;
         if (!d || !s) { salesNoKey++; return; }
-        if (existingSalesKeys.has(uk)) {
-          salesSkipped++;
-          if (sampleSkippedSales.length < 5) sampleSkippedSales.push(uk.substring(0, 40));
-          return;
-        }
-        existingSalesKeys.add(uk);
-        gSales.push({
+        var normalized = {
           date: d, date_date: d, sku: s,
           product_name: row.product_name || row['商品名称'] || row['Product Name'] || '',
           title: row.title || row['标题'] || '',
@@ -948,7 +893,14 @@ async function mergeUploadedData() {
           revenue: parseFloat(row.revenue || row['收入'] || 0) || 0,
           formatted_revenue: '', year: rec.year || 0,
           refund_amount: 0, return_qty: 0, refund_status: '', reason: '', tag: '', after_sale_type: '',
-        });
+        };
+        var rowKey = JSON.stringify(Object.entries(normalized).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)]));
+        if (existingSalesKeys.has(rowKey)) {
+          salesSkipped++;
+          return;
+        }
+        existingSalesKeys.add(rowKey);
+        gSales.push(normalized);
         salesAdded++;
       } else {
         otherType++;
@@ -1006,6 +958,87 @@ async function mergeUploadedData() {
     console.error('[MERGE] Error stack:', e.stack);
     debugLog('合并失败！' + String(e.message || e).substring(0, 120), 'error');
     showToast('数据合并出错: ' + String(e.message || e).substring(0, 80), 'error');
+  }
+}
+
+// Rebuild gAfterSale or gSales from UploadDB for specified type
+async function rebuildFromUploadDB(type) {
+  console.log('[REBUILD] rebuildFromUploadDB: ' + type);
+  debugLog('[Rebuild] 从 UploadDB 重建 ' + (type === 'after' ? '售后' : '销量') + ' 数据...');
+  try {
+    var db = getUploadDB();
+    var records = await db.records.where({type: type}).toArray();
+    console.log('[REBUILD] UploadDB ' + type + ' records:', records.length);
+
+    var seen = new Set();
+    var result = [];
+
+    for (var i = 0; i < records.length; i++) {
+      var row = records[i].data;
+      if (!row || !Array.isArray(row)) continue;
+
+      if (type === 'after') {
+        if (row.length < 5) continue;
+        var tid = String(row[0] || '');
+        if (!tid) continue;
+        var normalized = {
+          ticket_id: tid,
+          after_sale_type: String(row[1] || ''),
+          product_name: '',
+          sku: String(row[2] || ''),
+          reason: String(row[3] || ''),
+          refund_status: String(row[4] || ''),
+          order_amount: 0,
+          refund_amount: 0,
+          return_qty: parseInt(row[5] || 1) || 1,
+          tag: String(row[6] || ''),
+          create_time: String(row[8] || ''),
+          create_date: String(row[8] || ''),
+          order_time: String(row[7] || ''),
+          order_id: '',
+          responsibility: String(row[3] || ''),
+          year: records[i].year || 0,
+        };
+      } else {
+        if (row.length < 3) continue;
+        var d = String(row[0] || '');
+        var s = String(row[1] || '');
+        if (!d || !s) continue;
+        var normalized = {
+          date: d, date_date: d, sku: s,
+          product_name: '', title: '', attribute: '', shop: '', platform: '',
+          sales_qty: parseInt(row[2] || 0) || 0,
+          order_qty: parseInt(row[3] || 1) || 1,
+          revenue: 0,
+          formatted_revenue: '', year: records[i].year || 0,
+          refund_amount: 0, return_qty: 0, refund_status: '', reason: '', tag: '', after_sale_type: '',
+        };
+      }
+
+      var key = JSON.stringify(Object.entries(normalized).sort((a,b) => a[0].localeCompare(b[0])).map(([k,v]) => [k, v === undefined ? '' : String(v)]));
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(normalized);
+      }
+    }
+
+    if (type === 'after') {
+      gAfterSale = result;
+    } else {
+      gSales = result;
+    }
+
+    debugLog('[Rebuild] ' + (type === 'after' ? '售后' : '销量') + ' 重建完成: ' + result.length + ' 条 (UploadDB=' + records.length + ' 去重后)');
+    console.log('[REBUILD] ' + type + ' rebuilt: ' + result.length + ' records (from ' + records.length + ')');
+
+    // Invalidate DataCache
+    try {
+      var cacheDB = getDataCacheDB();
+      await cacheDB.cache.delete('compact_data');
+    } catch(ec) {}
+  } catch(e) {
+    console.error('[REBUILD] Failed:', e);
+    debugLog('[Rebuild] 重建失败: ' + e, 'error');
   }
 }
 
@@ -1287,8 +1320,10 @@ function applyOverview() {
 }
 
 function resetOverview() {
-  document.getElementById('ov-start').value = '';
-  document.getElementById('ov-end').value = '';
+  ['ov','ch','an','dt'].forEach(function(p){
+    var s=document.getElementById(p+'-start'), e=document.getElementById(p+'-end');
+    if(s) s.value=''; if(e) e.value='';
+  });
   document.getElementById('ov-granularity').value = 'month';
   document.getElementById('ov-sku').value = '';
   refreshOverview();
@@ -1438,8 +1473,10 @@ function refreshCharts() {
 function applyCharts() { refreshCharts(); }
 
 function resetCharts() {
-  document.getElementById('ch-start').value = '';
-  document.getElementById('ch-end').value = '';
+  ['ov','ch','an','dt'].forEach(function(p){
+    var s=document.getElementById(p+'-start'), e=document.getElementById(p+'-end');
+    if(s) s.value=''; if(e) e.value='';
+  });
   document.getElementById('ch-granularity').value = 'month';
   document.getElementById('ch-sku').value = '';
   refreshCharts();
@@ -1473,9 +1510,19 @@ function applyChartsWithParams(start, end, granularity, skuTerm) {
   let rl = Object.keys(reasonMap).sort((a,b) => reasonMap[b]-reasonMap[a]).slice(0,10);
   makeHorizontalBar('chart4', rl, rl.map(r => reasonMap[r]), '工单数');
 
-  // Chart 5: 责任方分布（环形图）
+  // Chart 5: 责任方分布（环形图）— 从售后原因前缀提取责任归属
   let respMap = {};
-  afterF.forEach(r => { let t = (r.responsibility && r.responsibility.trim()) ? r.responsibility : '未分类'; respMap[t] = (respMap[t]||0) + 1; });
+  afterF.forEach(r => {
+    let reason = (r.reason || '').trim();
+    let resp = '未知';
+    if (reason.startsWith('客户')) resp = '客户';
+    else if (reason.startsWith('产品') || reason.startsWith('品质') || reason.startsWith('A产品')) resp = '品控';
+    else if (reason.startsWith('第三方') || reason.startsWith('物流')) resp = '物流';
+    else if (reason.startsWith('越兴')) resp = '采购';
+    else if (reason.startsWith('发错货') || reason.startsWith('发错')) resp = '仓库';
+    else if (reason.startsWith('描述')) resp = '运营';
+    respMap[resp] = (respMap[resp]||0) + 1;
+  });
   let rpLabels = Object.keys(respMap).sort((a,b) => respMap[b]-respMap[a]);
   makePieChart('chart5', rpLabels, rpLabels.map(l => respMap[l]));
 }
@@ -1491,8 +1538,10 @@ function refreshAnalysis() {
 function applyAnalysis() { refreshAnalysis(); }
 
 function resetAnalysis() {
-  document.getElementById('an-start').value = '';
-  document.getElementById('an-end').value = '';
+  ['ov','ch','an','dt'].forEach(function(p){
+    var s=document.getElementById(p+'-start'), e=document.getElementById(p+'-end');
+    if(s) s.value=''; if(e) e.value='';
+  });
   document.getElementById('an-sku').value = '';
   refreshAnalysis();
 }
@@ -1507,20 +1556,20 @@ function applyAnalysisWithParams(start, end, skuTerm) {
   let total3 = afterF.length;
   let tagArr = Object.entries(tagMap).sort((a,b) => b[1]-a[1]).slice(0,30);
   document.getElementById('analysisTag').innerHTML = tagArr.map(([k,v],i) =>
-    `<tr><td>${i+1}</td><td>${k}</td><td>${fmtNum(v)}</td><td>${fmtPct(v,total3)}</td></tr>`
+    `<tr><td>${i+1}</td><td title="${k}">${k}</td><td style="text-align:right">${fmtNum(v)}</td><td style="text-align:right">${fmtPct(v,total3)}</td></tr>`
   ).join('');
 
   // 二、售后数量 TOP30 SKU
   let skuMap = {};
   afterF.forEach(r => {
-    if (!skuMap[r.sku]) skuMap[r.sku] = { name: r.product_name, count:0, returnQty:0, refundAmt:0 };
+    if (!skuMap[r.sku]) skuMap[r.sku] = { count:0, returnQty:0, refundAmt:0 };
     skuMap[r.sku].count++;
     skuMap[r.sku].returnQty += (r.return_qty||0);
     skuMap[r.sku].refundAmt += (r.refund_amount||0);
   });
   let skuArr = Object.entries(skuMap).sort((a,b) => b[1].returnQty-a[1].returnQty).slice(0,30);
   document.getElementById('analysisSku').innerHTML = skuArr.map(([k,v],i) =>
-    `<tr><td>${i+1}</td><td>${k}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${v.name}</td><td>${fmtNum(v.count)}</td><td>${fmtNum(v.returnQty)}</td></tr>`
+    `<tr><td>${i+1}</td><td title="${k}">${k}</td><td style="text-align:right">${fmtNum(v.count)}</td><td style="text-align:right">${fmtNum(v.returnQty)}</td></tr>`
   ).join('');
 }
 
@@ -1535,10 +1584,14 @@ function applyDetail() {
 }
 
 function resetDetail() {
-  document.getElementById('dt-start').value = '';
-  document.getElementById('dt-end').value = '';
+  ['ov','ch','an','dt'].forEach(function(p){
+    var s=document.getElementById(p+'-start'), e=document.getElementById(p+'-end');
+    if(s) s.value=''; if(e) e.value='';
+  });
   document.getElementById('dt-sku').value = '';
   document.getElementById('dt-status').value = '';
+  document.getElementById('dt-reason').value = '';
+  document.getElementById('dt-tag').value = '';
   refreshDetail();
 }
 
@@ -1553,9 +1606,13 @@ function applyDetailWithParams() {
   let end = document.getElementById('dt-end').value;
   let skuTerm = document.getElementById('dt-sku').value.trim();
   let statusFilter = document.getElementById('dt-status').value;
+  let reasonTerm = document.getElementById('dt-reason').value.trim();
+  let tagTerm = document.getElementById('dt-tag').value.trim();
 
   let afterF = filterAfterSale(start, end, skuTerm);
   if (statusFilter) afterF = afterF.filter(r => r.refund_status === statusFilter);
+  if (reasonTerm) afterF = afterF.filter(r => r.reason && r.reason.includes(reasonTerm));
+  if (tagTerm) afterF = afterF.filter(r => r.tag && r.tag.includes(tagTerm));
 
   // Sort
   afterF.sort((a,b) => {
@@ -1663,77 +1720,52 @@ function processUpload(file, type) {
     try {
       let wb = XLSX.read(e.target.result, {type:'array'});
       let sheet = wb.Sheets[wb.SheetNames[0]];
-      let json = XLSX.utils.sheet_to_json(sheet);
+      let aoa = XLSX.utils.sheet_to_json(sheet, {header: 1});
+      let json = aoa.slice(1).filter(row => row && row.length > 0 && row.some(v => v !== undefined && v !== null && v !== ''));
       let recordCount = json.length;
-      statusEl.textContent = `解析完成: ${recordCount} 条记录`;
+      statusEl.textContent = `解析完成: ${recordCount} 条记录 (原始${aoa.length-1}行含表头)`;
 
       let year = document.getElementById(type === 'after' ? 'yearAfter' : 'yearSales').value;
       let recType = type === 'after' ? '售后工单' : '销量数据';
 
-      // Incremental update: build existing-unique-key set, only insert new records
+      // Replace mode: clear old records for this type, then store all new records
       try {
         let db = getUploadDB();
         let yearNum = parseInt(year);
 
-        // Query existing unique keys for this type
-        let existingRecords = await db.records.where({type: type}).toArray();
-        let existingKeys = new Set();
-        if (type === 'after') {
-          // 售后工单: 按 ticket_id/工单号/Ticket ID/售后工单单号 去重
-          existingRecords.forEach(r => { if (r.data && (r.data.ticket_id || r.data['工单号'] || r.data['Ticket ID'] || r.data['售后工单单号'])) existingKeys.add(r.data.ticket_id || r.data['工单号'] || r.data['Ticket ID'] || r.data['售后工单单号']); });
-        } else {
-          // 销量数据: 按 date/日期/Date/时间||sku/SKU 去重
-          existingRecords.forEach(r => { if (r.data && (r.data.date || r.data['日期'] || r.data['Date'] || r.data['时间']) && (r.data.sku || r.data['SKU'])) existingKeys.add((r.data.date || r.data['日期'] || r.data['Date'] || r.data['时间']) + '||' + (r.data.sku || r.data['SKU'])); });
-        }
+        // Clear existing records for this type
+        let oldCount = await db.records.where({type: type}).count();
+        await db.records.where({type: type}).delete();
+        console.log('[UPLOAD] Cleared ' + oldCount + ' old ' + type + ' records');
 
-        // Filter: only keep new records
-        let newRecords = [];
-        let skipped = 0;
-        if (type === 'after') {
-          json.forEach(row => {
-            var uk = row.ticket_id || row['工单号'] || row['Ticket ID'] || row['售后工单单号'] || '';
-            if (uk && existingKeys.has(uk)) { skipped++; }
-            else { newRecords.push(row); if (uk) existingKeys.add(uk); }
-          });
-        } else {
-          json.forEach(row => {
-            var d = row.date || row['日期'] || row['Date'] || row['时间'] || '';
-            var s = row.sku || row['SKU'] || '';
-            var uk = (d && s) ? (d + '||' + s) : '';
-            if (uk && existingKeys.has(uk)) { skipped++; }
-            else { newRecords.push(row); if (uk) existingKeys.add(uk); }
-          });
-        }
-
-        // Insert only new records in batches
+        // Store all new records in batches
         let batchSize = 500;
         let key = `upload_${type}_${year}`;
-        for (let i = 0; i < newRecords.length; i += batchSize) {
-          let batch = newRecords.slice(i, i + batchSize).map(row => ({
+        for (let i = 0; i < json.length; i += batchSize) {
+          let batch = json.slice(i, i + batchSize).map(row => ({
             type: type,
             year: yearNum,
             data: row
           }));
           await db.records.bulkAdd(batch);
-          let pct = Math.round((i + batch.length) / newRecords.length * 100);
-          statusEl.textContent = `存储中... ${pct}% (${i + batch.length}/${newRecords.length})`;
+          let pct = Math.round((i + batch.length) / json.length * 100);
+          statusEl.textContent = `存储中... ${pct}% (${i + batch.length}/${json.length})`;
         }
         // Store metadata in localStorage (small)
         let totalStored = (await db.records.where({type: type}).count());
         localStorage.setItem(key + '_meta', JSON.stringify({
           count: totalStored, type: type, lastUpload: new Date().toISOString(),
-          added: newRecords.length, skipped: skipped, total: recordCount
+          added: json.length, total: recordCount
         }));
-        let msg = `${recType}: 新增 ${newRecords.length} 条`;
-        if (skipped > 0) msg += `，跳过 ${skipped} 条（已存在）`;
+        let msg = `${recType}: 已存入 ${json.length} 条`;
         showToast(msg, 'success');
-        statusEl.textContent = `累计: ${totalStored} 条 | 本次新增: ${newRecords.length} 条，跳过重复: ${skipped} 条`;
+        statusEl.textContent = `累计: ${totalStored} 条 | 本次存入: ${json.length} 条`;
 
         // Refresh page data with newly uploaded records
-        if (newRecords.length > 0) {
-          console.log('[UPLOAD] Calling mergeUploadedData...');
-          debugLog('开始合并上传数据到内存... (' + type + ':' + newRecords.length + '条新记录)');
-          await mergeUploadedData();
+        if (json.length > 0) {
+          console.log('[UPLOAD] Calling rebuildFromUploadDB for type=' + type + '...');
+          debugLog('从 UploadDB 重建内存数据... (' + type + ')');
+          await rebuildFromUploadDB(type);
           // Update status bar
           document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
           document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
@@ -1764,108 +1796,6 @@ function processUpload(file, type) {
   reader.readAsArrayBuffer(file);
 }
 
-async function syncToServer() {
-  showToast('正在准备数据导出...', '');
-
-  try {
-    // ── 1. 汇总元数据 ──
-    var now = new Date();
-    var nowStr = now.getFullYear() + '-' +
-      String(now.getMonth()+1).padStart(2,'0') + '-' +
-      String(now.getDate()).padStart(2,'0') + ' ' +
-      String(now.getHours()).padStart(2,'0') + ':' +
-      String(now.getMinutes()).padStart(2,'0') + ':' +
-      String(now.getSeconds()).padStart(2,'0');
-
-    // 计算日期范围
-    var dates = [];
-    for (var i = 0; i < gAfterSale.length; i++) {
-      var d = gAfterSale[i].create_date || gAfterSale[i].create_time || '';
-      if (d) dates.push(d.substring(0,10));
-    }
-    dates.sort();
-    var afterMin = dates[0] || '';
-    var afterMax = dates[dates.length-1] || '';
-
-    var sdates = [];
-    for (var i = 0; i < gSales.length; i++) {
-      var sd = gSales[i].date_date || gSales[i].date || '';
-      if (sd) sdates.push(sd.substring(0,10));
-    }
-    sdates.sort();
-    var sMin = sdates[0] || '';
-    var sMax = sdates[sdates.length-1] || '';
-
-    // 计算总订单量
-    var totalOrders = 0;
-    for (var i = 0; i < gSales.length; i++) {
-      totalOrders += (parseInt(gSales[i].order_qty) || 1);
-    }
-
-    // 计算年度统计
-    var yearMap = {};
-    for (var i = 0; i < gAfterSale.length; i++) {
-      var y = gAfterSale[i].year || 0;
-      if (!yearMap[y]) yearMap[y] = {after:0, sales:0, orders:0, returnQty:0};
-      yearMap[y].after++;
-      yearMap[y].returnQty += (parseInt(gAfterSale[i].return_qty) || 1);
-    }
-    for (var i = 0; i < gSales.length; i++) {
-      var y = gSales[i].year || 0;
-      if (!yearMap[y]) yearMap[y] = {after:0, sales:0, orders:0, returnQty:0};
-      yearMap[y].sales++;
-      yearMap[y].orders += (parseInt(gSales[i].order_qty) || 1);
-    }
-
-    var years = Object.keys(yearMap).sort();
-    var yearSummary = {};
-    for (var k = 0; k < years.length; k++) {
-      var y = years[k];
-      yearSummary[y] = yearMap[y];
-    }
-
-    // ── 2. 构建导出 JSON ──
-    var exportData = {
-      meta: {
-        generated_at: nowStr,
-        total_after_sale: gAfterSale.length,
-        total_sales: gSales.length,
-        total_orders: totalOrders,
-        date_range: {
-          after_sale_min: afterMin,
-          after_sale_max: afterMax,
-          sales_min: sMin,
-          sales_max: sMax
-        },
-        years: years.map(Number)
-      },
-      year_summary: yearSummary,
-      after_sale_records: gAfterSale,
-      sales_records: gSales
-    };
-
-    // ── 3. 触发浏览器下载 ──
-    var jsonStr = JSON.stringify(exportData, null, 2);
-    var blob = new Blob([jsonStr], {type: 'application/json'});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'export-data-' + nowStr.substring(0,10) + '.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    // ── 4. 保存同步时间戳 ──
-    localStorage.setItem(STORAGE_CLOUD_KEY, nowStr);
-
-    showToast('✅ 数据已导出下载！共 ' + gAfterSale.length + ' 条售后 + ' + gSales.length + ' 条销量', 'success');
-
-  } catch(e) {
-    console.error('[SYNC] Export error:', e);
-    showToast('导出失败: ' + e.message, 'error');
-  }
-}
 
 async function resetUploadData() {
   if (!confirm('⚠️ 确认清空所有数据？\n\n这将删除包括预置数据在内的全部售后工单和销量数据。\n页面将变为空白状态，您可以重新上传新数据。\n\n此操作不可撤销！')) {
@@ -2007,25 +1937,40 @@ function _debounce(key, fn, delay) {
 
 function setupAutoRefresh() {
   var el;
+  // Sync dates across all tabs when changed
+  function syncDates(prefix) {
+    var sv = document.getElementById(prefix+'-start').value;
+    var ev = document.getElementById(prefix+'-end').value;
+    ['ov','ch','an','dt'].forEach(function(p) {
+      if (p !== prefix) {
+        var s = document.getElementById(p+'-start');
+        var e = document.getElementById(p+'-end');
+        if (s) s.value = sv;
+        if (e) e.value = ev;
+      }
+    });
+  }
   // Overview
-  el = document.getElementById('ov-start');    if (el) el.addEventListener('change', applyOverview);
-  el = document.getElementById('ov-end');      if (el) el.addEventListener('change', applyOverview);
+  el = document.getElementById('ov-start');    if (el) el.addEventListener('change', function(){ syncDates('ov'); applyOverview(); });
+  el = document.getElementById('ov-end');      if (el) el.addEventListener('change', function(){ syncDates('ov'); applyOverview(); });
   el = document.getElementById('ov-granularity'); if (el) el.addEventListener('change', applyOverview);
   el = document.getElementById('ov-sku');       if (el) el.addEventListener('input', _debounce('ov-sku', applyOverview, 400));
   // Charts
-  el = document.getElementById('ch-start');    if (el) el.addEventListener('change', applyCharts);
-  el = document.getElementById('ch-end');      if (el) el.addEventListener('change', applyCharts);
+  el = document.getElementById('ch-start');    if (el) el.addEventListener('change', function(){ syncDates('ch'); applyCharts(); });
+  el = document.getElementById('ch-end');      if (el) el.addEventListener('change', function(){ syncDates('ch'); applyCharts(); });
   el = document.getElementById('ch-granularity'); if (el) el.addEventListener('change', applyCharts);
   el = document.getElementById('ch-sku');       if (el) el.addEventListener('input', _debounce('ch-sku', applyCharts, 400));
   // Analysis
-  el = document.getElementById('an-start');     if (el) el.addEventListener('change', applyAnalysis);
-  el = document.getElementById('an-end');       if (el) el.addEventListener('change', applyAnalysis);
+  el = document.getElementById('an-start');     if (el) el.addEventListener('change', function(){ syncDates('an'); applyAnalysis(); });
+  el = document.getElementById('an-end');       if (el) el.addEventListener('change', function(){ syncDates('an'); applyAnalysis(); });
   el = document.getElementById('an-sku');       if (el) el.addEventListener('input', _debounce('an-sku', applyAnalysis, 400));
   // Detail
-  el = document.getElementById('dt-start');     if (el) el.addEventListener('change', applyDetail);
-  el = document.getElementById('dt-end');       if (el) el.addEventListener('change', applyDetail);
+  el = document.getElementById('dt-start');     if (el) el.addEventListener('change', function(){ syncDates('dt'); applyDetail(); });
+  el = document.getElementById('dt-end');       if (el) el.addEventListener('change', function(){ syncDates('dt'); applyDetail(); });
   el = document.getElementById('dt-sku');       if (el) el.addEventListener('input', _debounce('dt-sku', applyDetail, 400));
   el = document.getElementById('dt-status');     if (el) el.addEventListener('change', applyDetail);
+  el = document.getElementById('dt-reason');    if (el) el.addEventListener('input', _debounce('dt-reason', applyDetail, 400));
+  el = document.getElementById('dt-tag');       if (el) el.addEventListener('input', _debounce('dt-tag', applyDetail, 400));
 }
 
 // ========== INIT ==========
@@ -2090,7 +2035,124 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('js-error-banner').style.display = 'block';
     document.getElementById('js-error-banner').textContent = '⚠️ 页面初始化失败: ' + err.message + ' — 请刷新页面';
   }
+
+  // ── 初始化云端同步 Token ──
+  (function() {
+    var saved = localStorage.getItem(GH_SYNC_TOKEN_KEY);
+    var tokenEl = document.getElementById('githubToken');
+    var btn = document.getElementById('btnSync');
+    if (saved && tokenEl) { tokenEl.value = saved; if (btn) btn.disabled = false; }
+    if (tokenEl) {
+      tokenEl.addEventListener('input', function() {
+        localStorage.setItem(GH_SYNC_TOKEN_KEY, tokenEl.value.trim());
+        if (btn) btn.disabled = !tokenEl.value.trim();
+      });
+    }
+  })();
 });
+
+// ========== CLOUD SYNC TO GITHUB ==========
+var GH_SYNC_TOKEN_KEY = 'gh_sync_token';
+var GH_REPO_API = 'https://api.github.com/repos/zhongshanms/lamp-after-sale-analysis/contents/data/after-sale-data-compact.json';
+
+function compactAfterSale(records) {
+  return records.map(function(r) {
+    var o = {};
+    if (r.ticket_id) o.tid = r.ticket_id;
+    if (r.after_sale_type) o.t = r.after_sale_type;
+    if (r.product_name) o.p = r.product_name;
+    if (r.sku) o.sku = r.sku;
+    if (r.reason) o.r = r.reason;
+    if (r.refund_status) o.rs = r.refund_status;
+    if (r.order_amount) o.oa = r.order_amount;
+    if (r.refund_amount) o.ra = r.refund_amount;
+    if (r.return_qty) o.rq = r.return_qty;
+    if (r.tag) o.tg = r.tag;
+    if (r.create_date) o.ct = r.create_date;
+    if (r.responsibility) o.resp = r.responsibility;
+    if (r.year) o.y = r.year;
+    return o;
+  });
+}
+
+function compactSales(records) {
+  return records.map(function(r) {
+    var o = {};
+    if (r.date_date) o.d = r.date_date;
+    if (r.sku) o.sku = r.sku;
+    if (r.product_name) o.pn = r.product_name;
+    if (r.platform) o.pf = r.platform;
+    if (r.sales_qty) o.sq = r.sales_qty;
+    if (r.order_qty) o.oq = r.order_qty;
+    if (r.revenue) o.rv = r.revenue;
+    if (r.formatted_revenue) o.fr = r.formatted_revenue;
+    if (r.year) o.y = r.year;
+    return o;
+  });
+}
+
+function buildCompactJSON() {
+  return {
+    m: (gData && gData.meta) || (gData && gData.m) || {},
+    ys: (gData && gData.year_summary) || (gData && gData.ys) || {},
+    st: (gData && gData.statistics) || (gData && gData.st) || {},
+    ar: compactAfterSale(gAfterSale),
+    sr: compactSales(gSales)
+  };
+}
+
+async function syncToGitHub() {
+  var token = document.getElementById('githubToken').value.trim();
+  var statusEl = document.getElementById('syncStatus');
+  var btn = document.getElementById('btnSync');
+
+  if (!token) { statusEl.innerHTML = '<span style="color:var(--danger)">请先输入 GitHub Token</span>'; return; }
+  if (gAfterSale.length === 0 && gSales.length === 0) {
+    statusEl.innerHTML = '<span style="color:var(--warning)">没有数据可同步，请先上传数据</span>';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ 同步中...';
+  statusEl.innerHTML = '<span style="color:var(--info)">正在准备数据...</span>';
+
+  try {
+    var compact = buildCompactJSON();
+    var jsonStr = JSON.stringify(compact);
+    var contentBase64 = btoa(unescape(encodeURIComponent(jsonStr)));
+
+    var headers = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3+json' };
+
+    // Step 1: 获取当前文件 SHA
+    statusEl.innerHTML = '<span style="color:var(--info)">正在获取文件信息...</span>';
+    var getResp = await fetch(GH_REPO_API, { headers: headers });
+    if (!getResp.ok) throw new Error('获取文件失败 HTTP ' + getResp.status);
+    var fileInfo = await getResp.json();
+
+    // Step 2: 上传数据
+    statusEl.innerHTML = '<span style="color:var(--info)">正在上传数据 (' + (contentBase64.length / 1024).toFixed(0) + 'KB)...</span>';
+    var putResp = await fetch(GH_REPO_API, {
+      method: 'PUT',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
+      body: JSON.stringify({
+        message: 'data sync: ' + gAfterSale.length + ' after-sale + ' + gSales.length + ' sales',
+        content: contentBase64,
+        sha: fileInfo.sha
+      })
+    });
+
+    if (!putResp.ok) {
+      var errData = await putResp.json();
+      throw new Error(errData.message || '上传失败 HTTP ' + putResp.status);
+    }
+
+    statusEl.innerHTML = '<span style="color:var(--success)">✅ 同步成功！售后 ' + gAfterSale.length + ' 条 + 销量 ' + gSales.length + ' 条。1-2分钟后所有设备（含手机）自动更新。</span>';
+    showToast('✅ 云端同步成功！所有设备即将更新', 'success');
+  } catch(e) {
+    statusEl.innerHTML = '<span style="color:var(--danger)">❌ 同步失败: ' + e.message + '</span>';
+    console.error('syncToGitHub error:', e);
+  }
+  btn.disabled = false; btn.textContent = '🔄 同步到云端';
+}
 </script>
 </body>
 </html>
