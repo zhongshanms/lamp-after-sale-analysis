@@ -596,23 +596,21 @@ async function loadData() {
       if (salesCount > 0) await rebuildFromUploadDB('sales');
       document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
       document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
-      // 同样设置默认最近6个月日期
       let allDates2 = [];
       gAfterSale.forEach(r => { if(r.create_date) allDates2.push(r.create_date); });
       gSales.forEach(r => { if(r.date_date) allDates2.push(r.date_date); });
       allDates2.sort();
-      let endD2, startD2;
-      if (allDates2.length > 0) {
-        endD2 = parseDate(allDates2[allDates2.length-1]);
+      let endD2 = allDates2.length > 0 ? parseDate(allDates2[allDates2.length-1]) : null;
+      if (endD2) {
+        let startD2 = new Date(endD2);
+        startD2.setMonth(startD2.getMonth() - 6);
+        setDateInputs(startD2, endD2);
+        updateDateRangeLabel();
+        refreshOverview(); refreshCharts(); refreshAnalysis(); refreshDetail(); refreshDBStatus();
+        debugLog('数据来源: UploadDB 用户上传数据 (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
+        return;
       }
-      if (!endD2) endD2 = new Date();  // 兜底：用今天
-      startD2 = new Date(endD2);
-      startD2.setMonth(startD2.getMonth() - 6);
-      setDateInputs(startD2, endD2);
-      updateDateRangeLabel();
-      refreshOverview(); refreshCharts(); refreshAnalysis(); refreshDetail(); refreshDBStatus();
-      debugLog('数据来源: UploadDB 用户上传数据 (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
-      return;
+      // UploadDB 数据日期无效 → 继续 fallback 到 JSON
     }
   } catch(e) {
     console.warn('UploadDB check failed:', e);
@@ -1078,19 +1076,19 @@ async function initData(json) {
   document.getElementById('status-after').textContent = `售后: ${fmtNum(gAfterSale.length)}条`;
   document.getElementById('status-sales').textContent = `销量: ${fmtNum(gSales.length)}条`;
 
-  // Set default date range: 有数据的最近6个月
+  // Set default date range: 最新数据往前6个月
   let allDates = [];
   gAfterSale.forEach(r => { if(r.create_date) allDates.push(r.create_date); });
   gSales.forEach(r => { if(r.date_date) allDates.push(r.date_date); });
   allDates.sort();
-  let endD, startD;
   if (allDates.length > 0) {
-    endD = parseDate(allDates[allDates.length-1]);
+    let endD = parseDate(allDates[allDates.length-1]);
+    if (endD) {
+      let startD = new Date(endD);
+      startD.setMonth(startD.getMonth() - 6);
+      setDateInputs(startD, endD);
+    }
   }
-  if (!endD) endD = new Date();  // 兜底：用今天
-  startD = new Date(endD);
-  startD.setMonth(startD.getMonth() - 6);
-  setDateInputs(startD, endD);
 
   // Populate detail status dropdown
   let statuses = [...new Set(gAfterSale.map(r => r.refund_status).filter(Boolean))];
