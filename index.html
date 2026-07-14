@@ -1064,7 +1064,7 @@ async function initData(json) {
     let maxDate = allDates[allDates.length-1];
     let endD = parseDate(maxDate);
     let startD = new Date(endD);
-    startD.setMonth(startD.getMonth() - 6);
+    startD.setMonth(startD.getMonth() - 6); /* 最近6个月 */
 
     let elements = ['ov-start','ov-end','ch-start','ch-end','an-start','an-end','dt-start','dt-end'];
     elements.forEach(id => {
