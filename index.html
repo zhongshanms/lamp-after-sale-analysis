@@ -1650,10 +1650,7 @@ function bindSuggest(inputId, dropdownId, field) {
   }
 
   input.addEventListener('focus', () => {
-    refresh(input.value.trim());
-  });
-  input.addEventListener('input', () => {
-    refresh(input.value.trim());
+    refresh('');  // 始终全量显示，不按输入过滤
   });
   input.addEventListener('blur', () => {
     setTimeout(() => hideSuggest(dropdown), 150);
@@ -1664,8 +1661,11 @@ function bindSuggest(inputId, dropdownId, field) {
     if (!item) return;
     e.preventDefault();
     let txt = item.getAttribute('data-text');
+    // 临时填值触发筛选
     input.value = txt;
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    // 立即清空，下次点击输入框直接弹出下拉
+    input.value = '';
     hideSuggest(dropdown);
   });
 }
