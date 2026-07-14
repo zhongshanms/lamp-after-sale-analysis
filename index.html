@@ -1744,11 +1744,13 @@ function refreshDBStatus() {
   let yearMap = {};
   gAfterSale.forEach(function(r) {
     let y = r.create_date ? r.create_date.substring(0,4) : (r.year ? String(r.year) : '未知');
+    if (!isValidYear(y)) return;  // 忽略异常年份（IndexedDB 历史脏数据）
     if (!yearMap[y]) yearMap[y] = {after:0, sales:0};
     yearMap[y].after++;
   });
   gSales.forEach(function(r) {
     let y = r.date_date ? r.date_date.substring(0,4) : (r.year ? String(r.year) : '未知');
+    if (!isValidYear(y)) return;
     if (!yearMap[y]) yearMap[y] = {after:0, sales:0};
     yearMap[y].sales++;
   });
@@ -1758,6 +1760,12 @@ function refreshDBStatus() {
     var s = yearMap[y];
     return '<tr><td>' + y + '</td><td>' + fmtNum(s.after) + '</td><td>' + fmtNum(s.sales) + '</td><td>' + fmtNum((s.after||0)+(s.sales||0)) + '</td></tr>';
   }).join('');
+}
+
+function isValidYear(y) {
+  if (y == null || y === '未知') return false;
+  let n = parseInt(y, 10);
+  return n >= 2020 && n <= 2030;
 }
 
 // ========== UPLOAD ==========
