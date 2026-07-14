@@ -1649,11 +1649,14 @@ function bindSuggest(inputId, dropdownId, field) {
     renderSuggest(dropdown, items, term || '');
   }
 
+  let blurTimer = null;
+
   input.addEventListener('focus', () => {
+    if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; }
     refresh('');
   });
   input.addEventListener('blur', () => {
-    setTimeout(() => hideSuggest(dropdown), 200);
+    blurTimer = setTimeout(() => { hideSuggest(dropdown); blurTimer = null; }, 200);
   });
 
   dropdown.addEventListener('mousedown', (e) => {
@@ -1670,9 +1673,11 @@ function bindSuggest(inputId, dropdownId, field) {
       clearTimeout(_debounceTimers['dt-tag']);
     }
     applyDetailWithParams();
-    // 筛选完成后清空，下次点击直接弹出下拉
+    // 筛选完成后清空，关闭下拉，焦点回到 input
     input.value = '';
+    if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; }
     hideSuggest(dropdown);
+    input.focus();
   });
 }
 
