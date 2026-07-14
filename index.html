@@ -652,19 +652,39 @@ async function loadData() {
         allDatesX.sort();
         console.log('[JSON分支] 售后=' + gAfterSale.length + ' 销量=' + gSales.length + ' 日期范围=' + (allDatesX[0]||'?') + '~' + (allDatesX[allDatesX.length-1]||'?'));
         document.getElementById('ov-start').style.outline = allDatesX.length > 0 ? '2px solid lime' : '2px solid red';
+        // 创建 banner 元素（无论 setDateInputs 是否成功，先创建）
+        if (!document.getElementById('date-debug-banner')) {
+          let b = document.createElement('div');
+          b.id = 'date-debug-banner';
+          b.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#1a73e8;color:#fff;padding:8px 16px;font-size:14px;z-index:99999;text-align:center;font-family:sans-serif';
+          b.textContent = 'JSON分支: 售后=' + gAfterSale.length + ' 销量=' + gSales.length + ' 日期数=' + allDatesX.length;
+          document.body.appendChild(b);
+        }
         // 关键：无论 initData 内部如何，强制在 JSON 分支直接设置日期
         if (allDatesX.length > 0) {
           let endD = parseDate(allDatesX[allDatesX.length-1]);
+          document.getElementById('date-debug-banner').textContent = 'JSON分支: maxDate=' + allDatesX[allDatesX.length-1] + ' parseDate=' + (endD ? 'OK' : 'NULL');
           if (endD) {
             let startD = new Date(endD);
             startD.setMonth(startD.getMonth() - 6);
-            setDateInputs(startD, endD);
-            console.log('[JSON分支] setDateInputs 执行完成');
+            document.getElementById('date-debug-banner').textContent = 'JSON分支: 准备 setDateInputs start=' + startD.toISOString() + ' end=' + endD.toISOString();
+            try {
+              setDateInputs(startD, endD);
+              document.getElementById('date-debug-banner').textContent = '日期范围: ' + startD.toISOString().slice(0,10) + ' ~ ' + endD.toISOString().slice(0,10) + ' (最新数据往前6个月)';
+            } catch(e2) {
+              document.getElementById('date-debug-banner').textContent = 'setDateInputs 错误: ' + e2.message;
+              document.getElementById('date-debug-banner').style.background = 'red';
+            }
           }
         }
       } catch(e) {
         console.error('[JSON分支调试] 错误: ' + e);
-        showToast('JSON分支调试错误: ' + e.message, 'error');
+        if (document.body) {
+          let eb = document.createElement('div');
+          eb.style.cssText = 'position:fixed;top:0;left:0;right:0;background:red;color:#fff;padding:8px;z-index:99999';
+          eb.textContent = 'JSON调试错误: ' + e.message;
+          document.body.appendChild(eb);
+        }
       }
       var overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.style.display = 'none';
