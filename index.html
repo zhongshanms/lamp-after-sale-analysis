@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>独立站灯饰售后工单分析系统</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dexie@4.0.4/dist/dexie.min.js"></script>
@@ -626,6 +629,15 @@ async function loadData() {
       let json = await resp.json();
       initData(json);
       cacheDataInBackground(json);
+      // 调试：显示当前数据状态
+      try {
+        let allDatesX = [];
+        gAfterSale.forEach(r => { if(r.create_date) allDatesX.push(r.create_date); });
+        gSales.forEach(r => { if(r.date_date) allDatesX.push(r.date_date); });
+        allDatesX.sort();
+        console.log('[JSON分支] 售后=' + gAfterSale.length + ' 销量=' + gSales.length + ' 日期范围=' + (allDatesX[0]||'?') + '~' + (allDatesX[allDatesX.length-1]||'?'));
+        document.getElementById('ov-start').style.outline = allDatesX.length > 0 ? '2px solid lime' : '2px solid red';
+      } catch(e) {}
       var overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.style.display = 'none';
       debugLog('数据来源: 预置JSON文件 (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
