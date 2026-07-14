@@ -403,11 +403,14 @@ function fmtDate(d) {
 }
 function setDateInputs(startD, endD) {
   let elements = ['ov-start','ov-end','ch-start','ch-end','an-start','an-end','dt-start','dt-end'];
+  let startStr = fmtDate(startD);
+  let endStr = fmtDate(endD);
+  console.log('[setDateInputs] start=' + startD + ' fmt=' + startStr + ' end=' + endD + ' fmt=' + endStr);
   elements.forEach(id => {
     let el = document.getElementById(id);
     if (el) {
-      if (id.endsWith('start')) el.value = fmtDate(startD);
-      else el.value = fmtDate(endD);
+      if (id.endsWith('start')) el.value = startStr;
+      else el.value = endStr;
     }
   });
 }
@@ -1093,12 +1096,15 @@ async function initData(json) {
   gAfterSale.forEach(r => { if(r.create_date) allDates.push(r.create_date); });
   gSales.forEach(r => { if(r.date_date) allDates.push(r.date_date); });
   allDates.sort();
+  console.log('[initData] allDates.length=' + allDates.length + (allDates.length>0 ? ' range='+allDates[0]+'~'+allDates[allDates.length-1] : ''));
   if (allDates.length > 0) {
     let endD = parseDate(allDates[allDates.length-1]);
     if (endD) {
       let startD = new Date(endD);
       startD.setMonth(startD.getMonth() - 6);
       setDateInputs(startD, endD);
+    } else {
+      console.log('[initData] parseDate returned null for: ' + allDates[allDates.length-1]);
     }
   }
 
