@@ -650,6 +650,7 @@ async function loadData() {
         gAfterSale.forEach(r => { if(r.create_date) allDatesX.push(r.create_date); });
         gSales.forEach(r => { if(r.date_date) allDatesX.push(r.date_date); });
         allDatesX.sort();
+        document.title = 'STEP1: 售后=' + gAfterSale.length + ' 日期数=' + allDatesX.length;
         console.log('[JSON分支] 售后=' + gAfterSale.length + ' 销量=' + gSales.length + ' 日期范围=' + (allDatesX[0]||'?') + '~' + (allDatesX[allDatesX.length-1]||'?'));
         document.getElementById('ov-start').style.outline = allDatesX.length > 0 ? '2px solid lime' : '2px solid red';
         // 创建 banner 元素（无论 setDateInputs 是否成功，先创建）
@@ -663,28 +664,25 @@ async function loadData() {
         // 关键：无论 initData 内部如何，强制在 JSON 分支直接设置日期
         if (allDatesX.length > 0) {
           let endD = parseDate(allDatesX[allDatesX.length-1]);
-          document.getElementById('date-debug-banner').textContent = 'JSON分支: maxDate=' + allDatesX[allDatesX.length-1] + ' parseDate=' + (endD ? 'OK' : 'NULL');
+          document.title = 'STEP2: maxDate=' + allDatesX[allDatesX.length-1];
           if (endD) {
             let startD = new Date(endD);
             startD.setMonth(startD.getMonth() - 6);
-            document.getElementById('date-debug-banner').textContent = 'JSON分支: 准备 setDateInputs start=' + startD.toISOString() + ' end=' + endD.toISOString();
+            document.title = 'STEP3: 准备 setDateInputs';
             try {
               setDateInputs(startD, endD);
+              document.title = 'STEP4: OK ' + startD.toISOString().slice(0,10) + '~' + endD.toISOString().slice(0,10);
               document.getElementById('date-debug-banner').textContent = '日期范围: ' + startD.toISOString().slice(0,10) + ' ~ ' + endD.toISOString().slice(0,10) + ' (最新数据往前6个月)';
             } catch(e2) {
+              document.title = 'STEP4: ERROR ' + e2.message;
               document.getElementById('date-debug-banner').textContent = 'setDateInputs 错误: ' + e2.message;
               document.getElementById('date-debug-banner').style.background = 'red';
             }
           }
         }
       } catch(e) {
+        document.title = 'ERROR: ' + e.message;
         console.error('[JSON分支调试] 错误: ' + e);
-        if (document.body) {
-          let eb = document.createElement('div');
-          eb.style.cssText = 'position:fixed;top:0;left:0;right:0;background:red;color:#fff;padding:8px;z-index:99999';
-          eb.textContent = 'JSON调试错误: ' + e.message;
-          document.body.appendChild(eb);
-        }
       }
       var overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.style.display = 'none';
