@@ -408,10 +408,18 @@ function setDateInputs(startD, endD) {
   console.log('[setDateInputs] start=' + startD + ' fmt=' + startStr + ' end=' + endD + ' fmt=' + endStr);
   elements.forEach(id => {
     let el = document.getElementById(id);
-    if (el) {
-      if (id.endsWith('start')) el.value = startStr;
-      else el.value = endStr;
+    if (!el) return;
+    let val = id.endsWith('start') ? startStr : endStr;
+    if (!val) return;
+    // 优先用 valueAsDate (Date 对象，避免字符串格式问题)
+    try {
+      el.valueAsDate = id.endsWith('start') ? startD : endD;
+      if (!el.value) el.value = val;  // 兜底用字符串
+    } catch(e) {
+      el.value = val;
     }
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    console.log('[setDateInputs] ' + id + ' value=' + el.value);
   });
 }
 function fmtPeriod(dateStr, granularity) {
