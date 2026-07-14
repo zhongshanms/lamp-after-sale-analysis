@@ -410,17 +410,16 @@ function setDateInputs(startD, endD) {
     let el = document.getElementById(id);
     if (!el) return;
     let val = id.endsWith('start') ? startStr : endStr;
-    if (!val) return;
-    // 优先用 valueAsDate (Date 对象，避免字符串格式问题)
-    try {
-      el.valueAsDate = id.endsWith('start') ? startD : endD;
-      if (!el.value) el.value = val;  // 兜底用字符串
-    } catch(e) {
-      el.value = val;
-    }
+    let dateObj = id.endsWith('start') ? startD : endD;
+    // 多重尝试
+    el.value = val;
+    try { el.valueAsDate = dateObj; } catch(e) {}
+    if (!el.value) el.setAttribute('value', val);
     el.dispatchEvent(new Event('change', { bubbles: true }));
-    console.log('[setDateInputs] ' + id + ' value=' + el.value);
+    console.log('[setDateInputs] ' + id + ' value=' + el.value + ' valueAsDate=' + (el.valueAsDate ? 'OK' : 'null'));
   });
+  // 显示在页面顶部 toast
+  showToast('[日期范围] ' + startStr + ' ~ ' + endStr, 'info');
 }
 function fmtPeriod(dateStr, granularity) {
   let d = parseDate(dateStr);
