@@ -419,7 +419,6 @@ function setDateInputs(startD, endD) {
   let elements = ['ov-start','ov-end','ch-start','ch-end','an-start','an-end','dt-start','dt-end'];
   let startStr = fmtDate(startD);
   let endStr = fmtDate(endD);
-  console.log('[setDateInputs] start=' + startD + ' fmt=' + startStr + ' end=' + endD + ' fmt=' + endStr);
   elements.forEach(id => {
     let el = document.getElementById(id);
     if (!el) return;
@@ -430,15 +429,6 @@ function setDateInputs(startD, endD) {
     if (!el.value) el.setAttribute('value', val);
     el.dispatchEvent(new Event('change', { bubbles: true }));
   });
-  // 在页面顶部强制显示日期范围（无论 toast 是否工作）
-  let banner = document.getElementById('date-debug-banner');
-  if (!banner) {
-    banner = document.createElement('div');
-    banner.id = 'date-debug-banner';
-    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#1a73e8;color:#fff;padding:8px 16px;font-size:14px;z-index:9999;text-align:center;font-family:sans-serif';
-    document.body.appendChild(banner);
-  }
-  banner.textContent = '日期范围: ' + startStr + ' ~ ' + endStr + ' (最新数据往前6个月)';
 }
 function fmtPeriod(dateStr, granularity) {
   let d = parseDate(dateStr);
@@ -658,46 +648,6 @@ async function loadData() {
       let json = await resp.json();
       initData(json);
       cacheDataInBackground(json);
-      // 调试：显示当前数据状态
-      try {
-        let allDatesX = [];
-        gAfterSale.forEach(r => { if(r.create_date) allDatesX.push(r.create_date); });
-        gSales.forEach(r => { if(r.date_date) allDatesX.push(r.date_date); });
-        allDatesX.sort();
-        document.title = 'STEP1: 售后=' + gAfterSale.length + ' 日期数=' + allDatesX.length;
-        console.log('[JSON分支] 售后=' + gAfterSale.length + ' 销量=' + gSales.length + ' 日期范围=' + (allDatesX[0]||'?') + '~' + (allDatesX[allDatesX.length-1]||'?'));
-        document.getElementById('ov-start').style.outline = allDatesX.length > 0 ? '2px solid lime' : '2px solid red';
-        // 创建 banner 元素（无论 setDateInputs 是否成功，先创建）
-        if (!document.getElementById('date-debug-banner')) {
-          let b = document.createElement('div');
-          b.id = 'date-debug-banner';
-          b.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#1a73e8;color:#fff;padding:8px 16px;font-size:14px;z-index:99999;text-align:center;font-family:sans-serif';
-          b.textContent = 'JSON分支: 售后=' + gAfterSale.length + ' 销量=' + gSales.length + ' 日期数=' + allDatesX.length;
-          document.body.appendChild(b);
-        }
-        // 关键：无论 initData 内部如何，强制在 JSON 分支直接设置日期
-        if (allDatesX.length > 0) {
-          let endD = parseDate(allDatesX[allDatesX.length-1]);
-          document.title = 'STEP2: maxDate=' + allDatesX[allDatesX.length-1];
-          if (endD) {
-            let startD = new Date(endD);
-            startD.setMonth(startD.getMonth() - 6);
-            document.title = 'STEP3: 准备 setDateInputs';
-            try {
-              setDateInputs(startD, endD);
-              document.title = 'STEP4: OK ' + startD.toISOString().slice(0,10) + '~' + endD.toISOString().slice(0,10);
-              document.getElementById('date-debug-banner').textContent = '日期范围: ' + startD.toISOString().slice(0,10) + ' ~ ' + endD.toISOString().slice(0,10) + ' (最新数据往前6个月)';
-            } catch(e2) {
-              document.title = 'STEP4: ERROR ' + e2.message;
-              document.getElementById('date-debug-banner').textContent = 'setDateInputs 错误: ' + e2.message;
-              document.getElementById('date-debug-banner').style.background = 'red';
-            }
-          }
-        }
-      } catch(e) {
-        document.title = 'ERROR: ' + e.message;
-        console.error('[JSON分支调试] 错误: ' + e);
-      }
       var overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.style.display = 'none';
       debugLog('数据来源: 预置JSON文件 (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
@@ -1153,15 +1103,12 @@ async function initData(json) {
   gAfterSale.forEach(r => { if(r.create_date) allDates.push(r.create_date); });
   gSales.forEach(r => { if(r.date_date) allDates.push(r.date_date); });
   allDates.sort();
-  console.log('[initData] allDates.length=' + allDates.length + (allDates.length>0 ? ' range='+allDates[0]+'~'+allDates[allDates.length-1] : ''));
   if (allDates.length > 0) {
     let endD = parseDate(allDates[allDates.length-1]);
     if (endD) {
       let startD = new Date(endD);
       startD.setMonth(startD.getMonth() - 6);
       setDateInputs(startD, endD);
-    } else {
-      console.log('[initData] parseDate returned null for: ' + allDates[allDates.length-1]);
     }
   }
 
