@@ -392,6 +392,20 @@ function parseDate(str) {
   }
   m = s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日/);
   if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+  // Excel 序列号支持 (如 46215.72699 = 2026-07-09 17:26:48)
+  if (/^\d+(\.\d+)?$/.test(s)) {
+    let n = parseFloat(s);
+    if (n > 1 && n < 100000) {
+      // Excel 1900 系统：1900-01-01 = 1, 1970-01-01 = 25569
+      let d = new Date((n - 25569) * 86400 * 1000);
+      if (!isNaN(d)) return d;
+    }
+  }
+  // ISO 时间戳支持 (如 2026-07-05T14:40:19)
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    let d = new Date(s);
+    if (!isNaN(d)) return d;
+  }
   return null;
 }
 function fmtDate(d) {
