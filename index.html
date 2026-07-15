@@ -417,6 +417,7 @@ function fmtDate(d) {
   return `${y}-${m}-${day}`;
 }
 function fmtDetailTime(str) {
+  // 版本标识 v20260715
   if (str == null) return '';
   let s = String(str).trim();
   // 字符串 "YYYY-MM-DD HH:mm:ss" → 直接取前 19 字符
