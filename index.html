@@ -640,40 +640,10 @@ async function loadData() {
     return;
   }
 
-  // ── Load from UploadDB only (user-uploaded data) ──
+  // ── 优先加载 JSON（包含完整时间），UploadDB 仅作后备 ──
   if (detailEl) detailEl.textContent = '正在加载数据...';
+  let loadedFromJSON = false;
   try {
-    let udb = getUploadDB();
-    let afterCount = await udb.records.where({type: 'after'}).count();
-    let salesCount = await udb.records.where({type: 'sales'}).count();
-    if (afterCount > 0 || salesCount > 0) {
-      if (afterCount > 0) await rebuildFromUploadDB('after');
-      if (salesCount > 0) await rebuildFromUploadDB('sales');
-      document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
-      document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
-      let allDates2 = [];
-      gAfterSale.forEach(r => { if(r.create_date) allDates2.push(r.create_date); });
-      gSales.forEach(r => { if(r.date_date) allDates2.push(r.date_date); });
-      allDates2.sort();
-      let endD2 = allDates2.length > 0 ? parseDate(allDates2[allDates2.length-1]) : null;
-      if (endD2) {
-        let startD2 = new Date(endD2);
-        startD2.setMonth(startD2.getMonth() - 6);
-        setDateInputs(startD2, endD2);
-        updateDateRangeLabel();
-        refreshOverview(); refreshCharts(); refreshAnalysis(); refreshDetail(); refreshDBStatus();
-        debugLog('数据来源: UploadDB 用户上传数据 (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
-        return;
-      }
-      // UploadDB 数据日期无效 → 继续 fallback 到 JSON
-    }
-  } catch(e) {
-    console.warn('UploadDB check failed:', e);
-  }
-
-  // ── Fallback: load from compact JSON file ──
-  try {
-    if (detailEl) detailEl.textContent = '正在加载预置数据...';
     let dataUrl = './data/after-sale-data-compact.json';
     let resp = await fetchWithTimeout(dataUrl, 30000);
     if (resp.ok) {
@@ -681,14 +651,38 @@ async function loadData() {
       let json = await resp.json();
       initData(json);
       cacheDataInBackground(json);
+      loadedFromJSON = true;
       var overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.style.display = 'none';
-      debugLog('数据来源: 预置JSON文件 (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
-      return;
+      debugLog('数据来源: 预置JSON (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
     }
   } catch(e) {
     console.warn('预置JSON加载失败:', e.message);
-    if (detailEl) detailEl.textContent = '预置数据加载失败: ' + e.message;
+  }
+
+  // JSON 不可用 → 回退 UploadDB
+  if (!loadedFromJSON) {
+    try {
+      let udb = getUploadDB();
+      let afterCount = await udb.records.where({type: 'after'}).count();
+      let salesCount = await udb.records.where({type: 'sales'}).count();
+      if (afterCount > 0 || salesCount > 0) {
+        if (afterCount > 0) await rebuildFromUploadDB('after');
+        if (salesCount > 0) await rebuildFromUploadDB('sales');
+        document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
+        document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
+        updateDateRangeLabel();
+        refreshOverview(); refreshCharts(); refreshAnalysis(); refreshDetail(); refreshDBStatus();
+        var overlay = document.getElementById('loading-overlay');
+        if (overlay) overlay.style.display = 'none';
+        debugLog('数据来源: UploadDB(JSON不可用) 售后=' + gAfterSale.length, 'warn');
+        return;
+      }
+    } catch(e2) {
+      console.warn('UploadDB 回退失败:', e2);
+    }
+  } else {
+    return;
   }
 
   // No data at all — show empty state
@@ -1067,8 +1061,8 @@ async function rebuildFromUploadDB(type) {
           refund_amount: 0,
           return_qty: parseInt(row[5] || 1) || 1,
           tag: String(row[6] || ''),
-          create_time: String(row[8] || ''),
-          create_date: String(row[8] || ''),
+          create_time: row[8] != null ? String(row[8]) : '',
+          create_date: row[8] != null ? String(row[8]) : '',
           order_time: String(row[7] || ''),
           order_id: '',
           responsibility: String(row[3] || ''),
