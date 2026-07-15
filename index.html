@@ -415,6 +415,18 @@ function fmtDate(d) {
   let day = String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
+function fmtDetailTime(str) {
+  if (!str) return '';
+  let d = parseDate(str);
+  if (!d || isNaN(d.getTime()) || d.getFullYear() < 2020) return String(str);
+  let y = d.getFullYear();
+  let mo = String(d.getMonth()+1).padStart(2,'0');
+  let da = String(d.getDate()).padStart(2,'0');
+  let hh = String(d.getHours()).padStart(2,'0');
+  let mi = String(d.getMinutes()).padStart(2,'0');
+  let se = String(d.getSeconds()).padStart(2,'0');
+  return `${y}-${mo}-${da} ${hh}:${mi}:${se}`;
+}
 function setDateInputs(startD, endD) {
   let elements = ['ov-start','ov-end','ch-start','ch-end','an-start','an-end','dt-start','dt-end'];
   let startStr = fmtDate(startD);
@@ -1764,7 +1776,7 @@ function applyDetailWithParams() {
   let tbody = document.getElementById('detailTable');
   tbody.innerHTML = display.map(r => `
     <tr>
-      <td>${r.create_time||r.create_date||''}</td>
+      <td>${fmtDetailTime(r.create_time||r.create_date||'')}</td>
       <td>${r.sku}</td>
       <td>${r.after_sale_type}</td>
       <td>${r.reason}</td>
