@@ -449,6 +449,18 @@ function fmtDetailTime(str) {
   }
   return s;
 }
+// 页面初始化后显示版本号
+function showVersionTag() {
+  let v = document.getElementById('app-version-tag');
+  if (!v) {
+    v = document.createElement('div');
+    v.id = 'app-version-tag';
+    v.style.cssText = 'position:fixed;bottom:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;padding:2px 6px;font-size:11px;z-index:99999;border-radius:3px;';
+    document.body.appendChild(v);
+  }
+  v.textContent = 'v20260715';
+}
+document.addEventListener('DOMContentLoaded', showVersionTag);
 function setDateInputs(startD, endD) {
   let elements = ['ov-start','ov-end','ch-start','ch-end','an-start','an-end','dt-start','dt-end'];
   let startStr = fmtDate(startD);
