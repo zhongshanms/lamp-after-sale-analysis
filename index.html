@@ -417,16 +417,36 @@ function fmtDate(d) {
   return `${y}-${m}-${day}`;
 }
 function fmtDetailTime(str) {
-  if (!str) return '';
-  let d = parseDate(str);
-  if (!d || isNaN(d.getTime()) || d.getFullYear() < 2020) return String(str);
-  let y = d.getFullYear();
-  let mo = String(d.getMonth()+1).padStart(2,'0');
-  let da = String(d.getDate()).padStart(2,'0');
-  let hh = String(d.getHours()).padStart(2,'0');
-  let mi = String(d.getMinutes()).padStart(2,'0');
-  let se = String(d.getSeconds()).padStart(2,'0');
-  return `${y}-${mo}-${da} ${hh}:${mi}:${se}`;
+  if (str == null) return '';
+  let s = String(str).trim();
+  // 字符串 "YYYY-MM-DD HH:mm:ss" → 直接取前 19 字符
+  let m = s.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+  if (m) {
+    let hh = m[2].padStart(2, '0');
+    let mi = m[3].padStart(2, '0');
+    let se = (m[4] || '0').padStart(2, '0');
+    return `${m[1]} ${hh}:${mi}:${se}`;
+  }
+  // 字符串 "YYYY-MM-DD" → 只日期
+  m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1] + ' 00:00:00';
+  // Excel 序列号
+  if (/^\d+(\.\d+)?$/.test(s)) {
+    let n = parseFloat(s);
+    if (n > 1 && n < 100000) {
+      let d = new Date((n - 25569) * 86400 * 1000);
+      if (!isNaN(d)) {
+        let y = d.getFullYear();
+        let mo = String(d.getMonth()+1).padStart(2,'0');
+        let da = String(d.getDate()).padStart(2,'0');
+        let hh = String(d.getHours()).padStart(2,'0');
+        let mi = String(d.getMinutes()).padStart(2,'0');
+        let se = String(d.getSeconds()).padStart(2,'0');
+        return `${y}-${mo}-${da} ${hh}:${mi}:${se}`;
+      }
+    }
+  }
+  return s;
 }
 function setDateInputs(startD, endD) {
   let elements = ['ov-start','ov-end','ch-start','ch-end','an-start','an-end','dt-start','dt-end'];
