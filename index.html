@@ -1048,24 +1048,24 @@ async function rebuildFromUploadDB(type) {
 
       if (type === 'after') {
         if (row.length < 5) continue;
-        var tid = String(row[0] || '');
-        if (!tid) continue;
+        var tid = (row[7] || '') + '_' + (row[1] || '') + '_' + i;  // 创建时间+SKU+序号作唯一标识
+        if (!row[1]) continue;  // 至少要有SKU
         var normalized = {
-          ticket_id: tid,
-          after_sale_type: String(row[1] || ''),
+          ticket_id: String(tid),
+          after_sale_type: String(row[0] || ''),
           product_name: '',
-          sku: String(row[2] || ''),
-          reason: String(row[3] || ''),
-          refund_status: String(row[4] || ''),
+          sku: String(row[1] || ''),
+          reason: String(row[2] || ''),
+          refund_status: String(row[3] || ''),
           order_amount: 0,
           refund_amount: 0,
-          return_qty: parseInt(row[5] || 1) || 1,
-          tag: String(row[6] || ''),
-          create_time: row[8] != null ? String(row[8]) : '',
-          create_date: row[8] != null ? String(row[8]) : '',
-          order_time: String(row[7] || ''),
+          return_qty: parseInt(row[4] || 1) || 1,
+          tag: String(row[5] || ''),
+          create_time: row[7] != null ? String(row[7]) : '',
+          create_date: row[7] != null ? String(row[7]) : '',
+          order_time: String(row[6] || ''),
           order_id: '',
-          responsibility: String(row[3] || ''),
+          responsibility: String(row[2] || ''),
           year: records[i].year || 0,
         };
       } else {
