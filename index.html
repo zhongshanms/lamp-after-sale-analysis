@@ -385,9 +385,10 @@ let gSortDir = 'desc';
 function parseDate(str) {
   if (!str) return null;
   let s = String(str).trim();
-  let m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  let m = s.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
   if (m) {
-    let d = new Date(m[1] + 'T00:00:00');
+    let d = new Date(+m[1].slice(0,4), +m[1].slice(5,7)-1, +m[1].slice(8,10),
+                     m[2] ? +m[2] : 0, m[3] ? +m[3] : 0, m[4] ? +m[4] : 0);
     if (!isNaN(d)) return d;
   }
   m = s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日/);
