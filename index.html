@@ -100,6 +100,14 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(2
 .dt-suggest-item .dt-suggest-text{color:var(--text,#222);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
 .dt-suggest-item .dt-suggest-pct{color:#888;font-size:12px;font-weight:500;flex-shrink:0;font-variant-numeric:tabular-nums}
 .dt-suggest-empty{padding:10px 12px;font-size:var(--font-sm);color:#999;text-align:center}
+.dt-input-group{position:relative;display:inline-flex;align-items:center}
+.dt-input-group input[readonly]{background:var(--card-bg);cursor:pointer;padding-right:62px}
+.dt-clear-chip{display:none;align-items:center;gap:4px;margin-left:-58px;padding:2px 8px;font-size:12px;line-height:1.4;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:10px;cursor:pointer;user-select:none;white-space:nowrap}
+.dt-clear-chip.show{display:inline-flex}
+.dt-clear-chip.wps-style{padding:2px 6px;background:transparent;border-color:transparent}
+.dt-clear-chip:hover{color:var(--primary)}
+.dt-clear-chip .dt-clear-text{font-size:12px}
+.dt-clear-chip .dt-clear-x{font-size:14px;font-weight:600;line-height:1}
 
 /* ========== Data Table ========== */
 .data-table-wrap{background:var(--card-bg);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px}
@@ -316,8 +324,8 @@ tbody tr:hover{background:#f8f9ff}
     <label>日期:</label><input type="date" id="dt-start">
     <label>至</label><input type="date" id="dt-end">
     <label>SKU:</label><input type="text" id="dt-sku" placeholder="搜索SKU...">
-    <label>售后原因:</label><span class="dt-suggest-wrap"><input type="text" id="dt-reason" placeholder="搜索售后原因..." autocomplete="off"><div class="dt-suggest" id="dt-reason-suggest"></div></span>
-    <label>标签:</label><span class="dt-suggest-wrap"><input type="text" id="dt-tag" placeholder="搜索标签..." autocomplete="off"><div class="dt-suggest" id="dt-tag-suggest"></div></span>
+    <label>售后原因:</label><span class="dt-suggest-wrap"><span class="dt-input-group"><input type="text" id="dt-reason" placeholder="搜索售后原因..." autocomplete="off" readonly><span class="dt-clear-chip" data-target="dt-reason"><span class="dt-clear-text">全部</span><span class="dt-clear-x">×</span></span></span><div class="dt-suggest" id="dt-reason-suggest"></div></span>
+    <label>标签:</label><span class="dt-suggest-wrap"><span class="dt-input-group"><input type="text" id="dt-tag" placeholder="搜索标签..." autocomplete="off" readonly><span class="dt-clear-chip" data-target="dt-tag"><span class="dt-clear-text">全部</span><span class="dt-clear-x">×</span></span></span><div class="dt-suggest" id="dt-tag-suggest"></div></span>
     <label>状态:</label><select id="dt-status"><option value="">全部</option></select>
     <button class="btn btn-outline" onclick="resetDetail()">🔄 重置</button>
   </div>
@@ -1692,7 +1700,7 @@ function getDetailBaseRows() {
   return rows;
 }
 
-function renderSuggest(dropdown, items, term) {
+function renderSuggest(dropdown, items, term, selectedText) {
   let html;
   let filtered = term
     ? items.filter(it => it.text.toLowerCase().includes(term.toLowerCase()))
@@ -1702,7 +1710,8 @@ function renderSuggest(dropdown, items, term) {
   } else {
     html = filtered.map((it, i) => {
       let pctTxt = (it.pct * 100).toFixed(it.pct >= 0.1 ? 1 : 2) + '%';
-      return `<div class="dt-suggest-item" data-text="${escapeHtml(it.text)}"><span class="dt-suggest-text">${escapeHtml(it.text)}</span><span class="dt-suggest-pct">${it.count} · ${pctTxt}</span></div>`;
+      let selCls = (selectedText && it.text === selectedText) ? ' active' : '';
+      return `<div class="dt-suggest-item${selCls}" data-text="${escapeHtml(it.text)}"><span class="dt-suggest-text">${escapeHtml(it.text)}</span><span class="dt-suggest-pct">${it.count} · ${pctTxt}</span></div>`;
     }).join('');
   }
   dropdown.innerHTML = html;
@@ -1717,30 +1726,52 @@ function bindSuggest(inputId, dropdownId, field) {
   let input = document.getElementById(inputId);
   let dropdown = document.getElementById(dropdownId);
   if (!input || !dropdown) return;
+  let wrap = input.closest('.dt-suggest-wrap');
+  let chip = wrap ? wrap.querySelector('.dt-clear-chip') : null;
 
   let items = [];
+  let blurTimer = null;
+
+  function updateChip() {
+    if (!chip) return;
+    if (input.value) {
+      chip.classList.add('show', 'wps-style');
+    } else {
+      chip.classList.remove('show', 'wps-style');
+    }
+  }
 
   function refresh(term) {
     items = calcFieldStats(getDetailBaseRows(), field);
-    renderSuggest(dropdown, items, term || '');
+    renderSuggest(dropdown, items, term || '', input.value);
   }
 
-  let blurTimer = null;
+  // readonly input 需手动 focus
+  if (wrap) {
+    wrap.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.dt-suggest')) return;
+      if (e.target.closest('.dt-clear-chip')) return;  // 清除按钮独立处理
+      if (e.target === input) {
+        e.preventDefault();
+        input.focus();
+      }
+    });
+  }
 
   input.addEventListener('focus', () => {
     if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; }
     refresh('');
   });
   input.addEventListener('blur', () => {
-    blurTimer = setTimeout(() => { hideSuggest(dropdown); blurTimer = null; }, 200);
+    blurTimer = setTimeout(() => { hideSuggest(dropdown); blurTimer = null; }, 150);
   });
 
+  // 选中：mousedown + preventDefault 防 blur 先于选值
   dropdown.addEventListener('mousedown', (e) => {
     let item = e.target.closest('.dt-suggest-item');
     if (!item) return;
     e.preventDefault();
     let txt = item.getAttribute('data-text');
-    // 设值 → 直接触发筛选
     input.value = txt;
     if (typeof _debounceTimers !== 'undefined' && _debounceTimers['dt-reason']) {
       clearTimeout(_debounceTimers['dt-reason']);
@@ -1748,13 +1779,31 @@ function bindSuggest(inputId, dropdownId, field) {
     if (typeof _debounceTimers !== 'undefined' && _debounceTimers['dt-tag']) {
       clearTimeout(_debounceTimers['dt-tag']);
     }
-    applyDetailWithParams();
-    // 筛选完成后清空，关闭下拉，焦点回到 input
-    input.value = '';
-    if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; }
+    updateChip();
     hideSuggest(dropdown);
-    input.focus();
+    input.blur();
+    applyDetailWithParams();
   });
+
+  // 清除按钮
+  if (chip) {
+    chip.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      input.value = '';
+      updateChip();
+      hideSuggest(dropdown);
+      if (typeof _debounceTimers !== 'undefined' && _debounceTimers['dt-reason']) {
+        clearTimeout(_debounceTimers['dt-reason']);
+      }
+      if (typeof _debounceTimers !== 'undefined' && _debounceTimers['dt-tag']) {
+        clearTimeout(_debounceTimers['dt-tag']);
+      }
+      applyDetailWithParams();
+    });
+  }
+
+  updateChip();
 }
 
 function resetDetail() {
@@ -1766,6 +1815,7 @@ function resetDetail() {
   document.getElementById('dt-status').value = '';
   document.getElementById('dt-reason').value = '';
   document.getElementById('dt-tag').value = '';
+  document.querySelectorAll('#tab-detail .dt-clear-chip').forEach(c => c.classList.remove('show','wps-style'));
   refreshDetail();
 }
 
