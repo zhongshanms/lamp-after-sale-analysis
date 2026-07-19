@@ -92,22 +92,23 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(2
 .filter-bar label{font-size:var(--font-sm);font-weight:500;white-space:nowrap}
 .filter-bar input,.filter-bar select{padding:6px 10px;font-size:var(--font-sm)}
 .filter-bar button{padding:7px 16px;font-size:var(--font-sm);border-radius:var(--radius-sm)}
-.dt-suggest-wrap{position:relative;display:inline-block}
-.dt-suggest{position:absolute;left:0;right:0;top:100%;margin-top:2px;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:0 4px 12px rgba(0,0,0,.12);max-height:280px;overflow-y:auto;z-index:50;display:none}
-.dt-suggest.open{display:block}
-.dt-suggest-item{padding:7px 12px;font-size:var(--font-sm);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;line-height:1.4}
-.dt-suggest-item:hover,.dt-suggest-item.active{background:var(--brand-50,#eef2ff)}
-.dt-suggest-item .dt-suggest-text{color:var(--text,#222);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
-.dt-suggest-item .dt-suggest-pct{color:#888;font-size:12px;font-weight:500;flex-shrink:0;font-variant-numeric:tabular-nums}
-.dt-suggest-empty{padding:10px 12px;font-size:var(--font-sm);color:#999;text-align:center}
-.dt-input-group{position:relative;display:inline-flex;align-items:center}
-.dt-input-group input[readonly]{background:var(--card-bg);cursor:pointer;padding-right:62px}
-.dt-clear-chip{display:none;align-items:center;gap:4px;margin-left:-58px;padding:2px 8px;font-size:12px;line-height:1.4;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:10px;cursor:pointer;user-select:none;white-space:nowrap}
-.dt-clear-chip.show{display:inline-flex}
-.dt-clear-chip.wps-style{padding:2px 6px;background:transparent;border-color:transparent}
-.dt-clear-chip:hover{color:var(--primary)}
-.dt-clear-chip .dt-clear-text{font-size:12px}
-.dt-clear-chip .dt-clear-x{font-size:14px;font-weight:600;line-height:1}
+/* ========== Autocomplete Dropdown ========== */
+.autocomplete-wrap{position:relative;display:inline-block}
+.autocomplete-list{position:absolute;top:100%;left:0;right:0;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:280px;overflow-y:auto;z-index:50;display:none;margin-top:2px;min-width:220px}
+.autocomplete-list.show{display:block}
+.autocomplete-item{padding:7px 12px;cursor:pointer;font-size:var(--font-sm);display:flex;justify-content:space-between;align-items:center;gap:12px;transition:background .15s;color:var(--text)}
+.autocomplete-item:hover,.autocomplete-item.active{background:rgba(26,115,232,.08)}
+.autocomplete-item.selected{background:rgba(26,115,232,.15);font-weight:600}
+.autocomplete-item .pct{color:var(--text-secondary);font-size:0.78rem;flex-shrink:0;font-weight:500}
+.autocomplete-item.empty{color:var(--text-secondary);text-align:center;padding:14px;cursor:default;display:block}
+.autocomplete-item.empty:hover{background:transparent}
+.autocomplete-item mark{background:rgba(245,154,35,.25);color:inherit;padding:0 1px;border-radius:2px}
+.filter-chip{display:none;align-items:center;gap:4px;background:rgba(26,115,232,.12);color:var(--primary);border-radius:12px;padding:2px 6px 2px 10px;font-size:var(--font-sm);white-space:nowrap;max-width:200px}
+.filter-chip.show{display:inline-flex}
+.filter-chip.wps-style{padding:2px 4px;background:transparent}
+.filter-chip .chip-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.filter-chip .chip-close{cursor:pointer;font-size:1rem;line-height:1;opacity:.6;flex-shrink:0}
+.filter-chip .chip-close:hover{opacity:1}
 
 /* ========== Data Table ========== */
 .data-table-wrap{background:var(--card-bg);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px}
@@ -324,8 +325,8 @@ tbody tr:hover{background:#f8f9ff}
     <label>日期:</label><input type="date" id="dt-start">
     <label>至</label><input type="date" id="dt-end">
     <label>SKU:</label><input type="text" id="dt-sku" placeholder="搜索SKU...">
-    <label>售后原因:</label><span class="dt-suggest-wrap"><span class="dt-input-group"><input type="text" id="dt-reason" placeholder="搜索售后原因..." autocomplete="off" readonly><span class="dt-clear-chip" data-target="dt-reason"><span class="dt-clear-text">全部</span><span class="dt-clear-x">×</span></span></span><div class="dt-suggest" id="dt-reason-suggest"></div></span>
-    <label>标签:</label><span class="dt-suggest-wrap"><span class="dt-input-group"><input type="text" id="dt-tag" placeholder="搜索标签..." autocomplete="off" readonly><span class="dt-clear-chip" data-target="dt-tag"><span class="dt-clear-text">全部</span><span class="dt-clear-x">×</span></span></span><div class="dt-suggest" id="dt-tag-suggest"></div></span>
+    <label>售后原因:</label><span class="autocomplete-wrap"><input type="text" id="dt-reason" placeholder="选择售后原因..." autocomplete="off" readonly><div class="autocomplete-list" id="dt-reason-list"></div></span><span class="filter-chip" id="dt-reason-chip"><span class="chip-text"></span><span class="chip-close" onclick="clearDetailFilter('reason')">x</span></span>
+    <label>标签:</label><span class="autocomplete-wrap"><input type="text" id="dt-tag" placeholder="选择标签..." autocomplete="off" readonly><div class="autocomplete-list" id="dt-tag-list"></div></span><span class="filter-chip" id="dt-tag-chip"><span class="chip-text"></span><span class="chip-close" onclick="clearDetailFilter('tag')">x</span></span>
     <label>状态:</label><select id="dt-status"><option value="">全部</option></select>
     <button class="btn btn-outline" onclick="resetDetail()">🔄 重置</button>
   </div>
@@ -1700,110 +1701,143 @@ function getDetailBaseRows() {
   return rows;
 }
 
-function renderSuggest(dropdown, items, term, selectedText) {
-  let html;
-  let filtered = term
-    ? items.filter(it => it.text.toLowerCase().includes(term.toLowerCase()))
-    : items;
-  if (!filtered.length) {
-    html = '<div class="dt-suggest-empty">无匹配项</div>';
+// ========== AUTOCOMPLETE for reason/tag inputs ==========
+const _autocompleteCfg = {
+  reason: { inputId: 'dt-reason', listId: 'dt-reason-list', field: 'reason', chipId: 'dt-reason-chip' },
+  tag:    { inputId: 'dt-tag',    listId: 'dt-tag-list',    field: 'tag',    chipId: 'dt-tag-chip'    }
+};
+const BLANK_SENTINEL = '(空白)';
+const gDetailFilter = { reason: '', tag: '' };
+
+function _countField(field) {
+  const start = document.getElementById('dt-start').value;
+  const end = document.getElementById('dt-end').value;
+  const skuTerm = document.getElementById('dt-sku').value.trim();
+  const dataset = (typeof filterAfterSale === 'function')
+    ? filterAfterSale(start, end, skuTerm)
+    : gAfterSale;
+  const counter = { __BLANK__: 0 };
+  for (const r of dataset) {
+    const v = (r[field] || '').trim();
+    if (!v) counter.__BLANK__++;
+    else counter[v] = (counter[v] || 0) + 1;
+  }
+  return { counter, total: dataset.length };
+}
+
+function _renderAutocompleteList(cfg, term) {
+  const listEl = document.getElementById(cfg.listId);
+  if (!listEl) return;
+  const { counter, total } = _countField(cfg.field);
+  const lowerTerm = (term || '').toLowerCase();
+
+  const entries = Object.entries(counter);
+  const pcts = entries.map(([_, cnt]) => total > 0 ? cnt / total * 100 : 0);
+  const sum = pcts.reduce((a, b) => a + b, 0);
+  if (Math.abs(sum - 100) > 0.001 && pcts.length > 0) {
+    let maxIdx = 0;
+    for (let k = 1; k < pcts.length; k++) { if (pcts[k] > pcts[maxIdx]) maxIdx = k; }
+    pcts[maxIdx] += (100 - sum);
+  }
+
+  let items = entries
+    .map(([k, cnt], i) => [k, cnt, pcts[i]])
+    .filter(([k]) => k === '__BLANK__' || !lowerTerm || k.toLowerCase().includes(lowerTerm))
+    .sort((a, b) => {
+      if (a[0] === '__BLANK__') return -1;
+      if (b[0] === '__BLANK__') return 1;
+      return b[1] - a[1];
+    })
+    .slice(0, 30);
+
+  const currentFilter = gDetailFilter[cfg.field];
+
+  if (items.length === 0) {
+    listEl.innerHTML = '<div class="autocomplete-item empty">无匹配项</div>';
   } else {
-    html = filtered.map((it, i) => {
-      let pctTxt = (it.pct * 100).toFixed(it.pct >= 0.1 ? 1 : 2) + '%';
-      let selCls = (selectedText && it.text === selectedText) ? ' active' : '';
-      return `<div class="dt-suggest-item${selCls}" data-text="${escapeHtml(it.text)}"><span class="dt-suggest-text">${escapeHtml(it.text)}</span><span class="dt-suggest-pct">${it.count} · ${pctTxt}</span></div>`;
+    listEl.innerHTML = items.map(([val, cnt, pct]) => {
+      const isBlank = val === '__BLANK__';
+      const displayVal = isBlank ? BLANK_SENTINEL : val;
+      const safe = String(displayVal).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+      const highlighted = (isBlank || !lowerTerm)
+        ? safe
+        : safe.replace(new RegExp(lowerTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), m => `<mark>${m}</mark>`);
+      const isSelected = (isBlank && currentFilter === BLANK_SENTINEL) || (!isBlank && currentFilter === val);
+      return `<div class="autocomplete-item${isSelected ? ' selected' : ''}" data-value="${isBlank ? '__BLANK__' : safe}"><span class="label">${highlighted}</span><span class="pct">${pct.toFixed(1)}%</span></div>`;
     }).join('');
-  }
-  dropdown.innerHTML = html;
-  dropdown.classList.add('open');
-}
-
-function hideSuggest(dropdown) {
-  dropdown.classList.remove('open');
-}
-
-function bindSuggest(inputId, dropdownId, field) {
-  let input = document.getElementById(inputId);
-  let dropdown = document.getElementById(dropdownId);
-  if (!input || !dropdown) return;
-  let wrap = input.closest('.dt-suggest-wrap');
-  let chip = wrap ? wrap.querySelector('.dt-clear-chip') : null;
-
-  let items = [];
-  let blurTimer = null;
-
-  function updateChip() {
-    if (!chip) return;
-    if (input.value) {
-      chip.classList.add('show', 'wps-style');
-    } else {
-      chip.classList.remove('show', 'wps-style');
-    }
-  }
-
-  function refresh(term) {
-    items = calcFieldStats(getDetailBaseRows(), field);
-    renderSuggest(dropdown, items, term || '', input.value);
-  }
-
-  // readonly input 需手动 focus
-  if (wrap) {
-    wrap.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.dt-suggest')) return;
-      if (e.target.closest('.dt-clear-chip')) return;  // 清除按钮独立处理
-      if (e.target === input) {
+    listEl.querySelectorAll('.autocomplete-item:not(.empty)').forEach(item => {
+      item.addEventListener('mousedown', function(e) {
         e.preventDefault();
-        input.focus();
-      }
+        const rawVal = this.getAttribute('data-value');
+        const isBlank = rawVal === '__BLANK__';
+        const filterVal = isBlank ? BLANK_SENTINEL : rawVal;
+        gDetailFilter[cfg.field] = filterVal;
+        _updateFilterChip(cfg);
+        document.getElementById(cfg.inputId).value = filterVal;
+        listEl.classList.remove('show');
+        document.getElementById(cfg.inputId).blur();
+        if (typeof applyDetail === 'function') applyDetail();
+      });
     });
   }
+  listEl.classList.add('show');
+}
 
-  input.addEventListener('focus', () => {
-    if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; }
-    refresh('');
-  });
-  input.addEventListener('blur', () => {
-    blurTimer = setTimeout(() => { hideSuggest(dropdown); blurTimer = null; }, 150);
-  });
-
-  // 选中：mousedown + preventDefault 防 blur 先于选值
-  dropdown.addEventListener('mousedown', (e) => {
-    let item = e.target.closest('.dt-suggest-item');
-    if (!item) return;
-    e.preventDefault();
-    let txt = item.getAttribute('data-text');
-    input.value = txt;
-    if (typeof _debounceTimers !== 'undefined' && _debounceTimers['dt-reason']) {
-      clearTimeout(_debounceTimers['dt-reason']);
-    }
-    if (typeof _debounceTimers !== 'undefined' && _debounceTimers['dt-tag']) {
-      clearTimeout(_debounceTimers['dt-tag']);
-    }
-    updateChip();
-    hideSuggest(dropdown);
-    input.blur();
-    applyDetailWithParams();
-  });
-
-  // 清除按钮
-  if (chip) {
-    chip.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      input.value = '';
-      updateChip();
-      hideSuggest(dropdown);
-      if (typeof _debounceTimers !== 'undefined' && _debounceTimers['dt-reason']) {
-        clearTimeout(_debounceTimers['dt-reason']);
-      }
-      if (typeof _debounceTimers !== 'undefined' && _debounceTimers['dt-tag']) {
-        clearTimeout(_debounceTimers['dt-tag']);
-      }
-      applyDetailWithParams();
-    });
+function _updateFilterChip(cfg) {
+  const chipEl = document.getElementById(cfg.chipId);
+  if (!chipEl) return;
+  const val = gDetailFilter[cfg.field];
+  const textEl = chipEl.querySelector('.chip-text');
+  if (val) {
+    chipEl.classList.add('show', 'wps-style');
+    if (textEl) textEl.style.display = 'none';
+  } else {
+    chipEl.classList.remove('show', 'wps-style');
+    if (textEl) textEl.style.display = '';
   }
+}
 
-  updateChip();
+function clearDetailFilter(field) {
+  gDetailFilter[field] = '';
+  const cfg = Object.values(_autocompleteCfg).find(c => c.field === field);
+  if (cfg) {
+    _updateFilterChip(cfg);
+    const inputEl = document.getElementById(cfg.inputId);
+    if (inputEl) inputEl.value = '';
+  }
+  if (typeof applyDetail === 'function') applyDetail();
+}
+
+function _initAutocomplete() {
+  const _blurTimers = {};
+  Object.values(_autocompleteCfg).forEach(cfg => {
+    const inputEl = document.getElementById(cfg.inputId);
+    const listEl = document.getElementById(cfg.listId);
+    if (!inputEl || !listEl) return;
+
+    inputEl.addEventListener('focus', () => {
+      clearTimeout(_blurTimers[cfg.inputId]);
+      _renderAutocompleteList(cfg, '');
+    });
+    inputEl.addEventListener('input', () => _renderAutocompleteList(cfg, inputEl.value));
+    inputEl.addEventListener('blur', () => {
+      _blurTimers[cfg.inputId] = setTimeout(() => {
+        listEl.classList.remove('show');
+      }, 150);
+    });
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.autocomplete-wrap') && !e.target.closest('.filter-chip')) {
+      document.querySelectorAll('.autocomplete-list.show').forEach(el => el.classList.remove('show'));
+    }
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initAutocomplete);
+} else {
+  _initAutocomplete();
 }
 
 function resetDetail() {
@@ -1815,7 +1849,9 @@ function resetDetail() {
   document.getElementById('dt-status').value = '';
   document.getElementById('dt-reason').value = '';
   document.getElementById('dt-tag').value = '';
-  document.querySelectorAll('#tab-detail .dt-clear-chip').forEach(c => c.classList.remove('show','wps-style'));
+  gDetailFilter.reason = '';
+  gDetailFilter.tag = '';
+  document.querySelectorAll('#tab-detail .filter-chip').forEach(c => c.classList.remove('show','wps-style'));
   refreshDetail();
 }
 
@@ -1830,13 +1866,19 @@ function applyDetailWithParams() {
   let end = document.getElementById('dt-end').value;
   let skuTerm = document.getElementById('dt-sku').value.trim();
   let statusFilter = document.getElementById('dt-status').value;
-  let reasonTerm = document.getElementById('dt-reason').value.trim();
-  let tagTerm = document.getElementById('dt-tag').value.trim();
+  let reasonTerm = gDetailFilter.reason;
+  let tagTerm = gDetailFilter.tag;
 
   let afterF = filterAfterSale(start, end, skuTerm);
   if (statusFilter) afterF = afterF.filter(r => r.refund_status === statusFilter);
-  if (reasonTerm) afterF = afterF.filter(r => r.reason && r.reason.includes(reasonTerm));
-  if (tagTerm) afterF = afterF.filter(r => r.tag && r.tag.includes(tagTerm));
+  if (reasonTerm) {
+    if (reasonTerm === BLANK_SENTINEL) afterF = afterF.filter(r => !r.reason);
+    else afterF = afterF.filter(r => r.reason && r.reason.includes(reasonTerm));
+  }
+  if (tagTerm) {
+    if (tagTerm === BLANK_SENTINEL) afterF = afterF.filter(r => !r.tag);
+    else afterF = afterF.filter(r => r.tag && r.tag.includes(tagTerm));
+  }
 
   // Sort
   afterF.sort((a,b) => {
@@ -2201,12 +2243,6 @@ function setupAutoRefresh() {
   el = document.getElementById('dt-end');       if (el) el.addEventListener('change', function(){ syncDates('dt'); applyDetail(); });
   el = document.getElementById('dt-sku');       if (el) el.addEventListener('input', _debounce('dt-sku', applyDetail, 400));
   el = document.getElementById('dt-status');     if (el) el.addEventListener('change', applyDetail);
-  el = document.getElementById('dt-reason');    if (el) el.addEventListener('input', _debounce('dt-reason', applyDetail, 400));
-  el = document.getElementById('dt-tag');       if (el) el.addEventListener('input', _debounce('dt-tag', applyDetail, 400));
-
-  // Suggest dropdowns for reason/tag
-  bindSuggest('dt-reason', 'dt-reason-suggest', 'reason');
-  bindSuggest('dt-tag', 'dt-tag-suggest', 'tag');
 }
 
 // ========== INIT ==========
