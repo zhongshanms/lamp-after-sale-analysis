@@ -196,8 +196,8 @@ tbody tr:hover{background:#f8f9ff}
   <h1>📊 独立站灯饰售后工单分析系统<span id="data-date-range" style="font-size:0.72rem;font-weight:400;color:#a0aec0;margin-left:10px;vertical-align:middle;white-space:nowrap"></span></h1>
   <div class="header-right">
     <div class="data-status">
-      <span id="status-after">售后: 加载中...</span>
       <span id="status-sales">销量: 加载中...</span>
+      <span id="status-after">售后: 加载中...</span>
     </div>
     <button class="login-btn logged-out" id="loginBtn">🔐 登录</button>
   </div>
@@ -653,8 +653,8 @@ async function loadData() {
     console.log('[RESET] Full reset mode: skipping all data loading');
     sessionStorage.removeItem('data_reset_pending');
     gData = {}; gAfterSale = []; gSales = [];
-    document.getElementById('status-after').textContent = '售后: 0条';
-    document.getElementById('status-sales').textContent = '销量: 0条';
+    document.getElementById('status-sales').textContent = '销量: 0-Pack';
+    document.getElementById('status-after').textContent = '售后: 0-Pack';
     var overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.style.display = 'none';
     refreshOverview(); refreshCharts(); refreshAnalysis(); refreshDetail(); refreshDBStatus();
@@ -691,8 +691,8 @@ async function loadData() {
       if (afterCount > 0 || salesCount > 0) {
         if (afterCount > 0) await rebuildFromUploadDB('after');
         if (salesCount > 0) await rebuildFromUploadDB('sales');
-        document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
-        document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
+        document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '-Pack';
+        document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '-Pack';
         updateDateRangeLabel();
         refreshOverview(); refreshCharts(); refreshAnalysis(); refreshDetail(); refreshDBStatus();
         var overlay = document.getElementById('loading-overlay');
@@ -709,8 +709,8 @@ async function loadData() {
 
   // No data at all — show empty state
   gData = {}; gAfterSale = []; gSales = [];
-  document.getElementById('status-after').textContent = '售后: 0条';
-  document.getElementById('status-sales').textContent = '销量: 0条';
+  document.getElementById('status-sales').textContent = '销量: 0-Pack';
+  document.getElementById('status-after').textContent = '售后: 0-Pack';
   var overlay = document.getElementById('loading-overlay');
   if (overlay) overlay.style.display = 'none';
   refreshOverview(); refreshCharts(); refreshAnalysis(); refreshDetail(); refreshDBStatus();
@@ -1144,8 +1144,8 @@ async function initData(json) {
   await mergeUploadedData();
 
   // Update status
-  document.getElementById('status-after').textContent = `售后: ${fmtNum(gAfterSale.length)}条`;
-  document.getElementById('status-sales').textContent = `销量: ${fmtNum(gSales.length)}条`;
+  document.getElementById('status-sales').textContent = `销量: ${fmtNum(gSales.length)}-Pack`;
+  document.getElementById('status-after').textContent = `售后: ${fmtNum(gAfterSale.length)}-Pack`;
 
   // Set default date range: 最新数据往前6个月
   let allDates = [];
@@ -2041,8 +2041,8 @@ function processUpload(file, type) {
           debugLog('从 UploadDB 重建内存数据... (' + type + ')');
           await rebuildFromUploadDB(type);
           // Update status bar
-          document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '条';
-          document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '条';
+          document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '-Pack';
+          document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '-Pack';
           debugLog('状态栏已更新: 售后=' + gAfterSale.length + ' 销量=' + gSales.length, 'success');
           updateDateRangeLabel();
           refreshOverview();
@@ -2280,8 +2280,8 @@ document.addEventListener('DOMContentLoaded', function() {
       let ov = document.getElementById('loading-overlay');
       if (ov) ov.remove();
       // Show error state on page
-      document.getElementById('status-after').textContent = '售后: 加载失败';
       document.getElementById('status-sales').textContent = '销量: 加载失败';
+      document.getElementById('status-after').textContent = '售后: 加载失败';
       showToast('数据加载失败，请刷新页面重试', 'error');
     });
 
