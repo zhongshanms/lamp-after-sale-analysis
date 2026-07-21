@@ -1,7 +1,7 @@
 @echo off
 title Lamp After-Sale Data Sync - Drag JSON here
 
-set "WORKDIR=C:\Users\DELL\WorkBuddy\2026-06-13-11-49-58\lamp-after-sale-analysis"
+set "WORKDIR=C:\Users\DELL\WorkBuddy\独立站灯饰售后分析系统"
 set "PS1=%WORKDIR%\sync.ps1"
 
 if "%~1"=="" (
