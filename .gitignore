@@ -32,3 +32,6 @@ package-lock.json
 
 # WorkBuddy
 .workbuddy/
+
+# Sync cache (used by sync.ps1)
+.sync_cache/

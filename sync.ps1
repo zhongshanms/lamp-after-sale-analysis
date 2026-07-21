@@ -15,11 +15,15 @@ Write-Host "  数据上传 - 独立站灯饰售后分析系统"
 Write-Host "============================================"
 Write-Host ""
 
-# ── 自动定位桌面/下载目录的 JSON ──
+# ── 自动定位 JSON（项目 data 目录 > 桌面 > 下载） ──
 if (-not $SourceFile) {
+    $ProjectData = Join-Path $PSScriptRoot "data\after-sale-data-compact.json"
     $DesktopJson = Join-Path $env:USERPROFILE "Desktop\after-sale-data-compact.json"
     $DownloadsJson = Join-Path $env:USERPROFILE "Downloads\after-sale-data-compact.json"
-    if (Test-Path -LiteralPath $DesktopJson) {
+    if (Test-Path -LiteralPath $ProjectData) {
+        $SourceFile = $ProjectData
+        Write-Host "[提示] 自动定位项目 data 目录文件"
+    } elseif (Test-Path -LiteralPath $DesktopJson) {
         $SourceFile = $DesktopJson
         Write-Host "[提示] 自动定位桌面文件"
     } elseif (Test-Path -LiteralPath $DownloadsJson) {
@@ -27,7 +31,7 @@ if (-not $SourceFile) {
         Write-Host "[提示] 自动定位下载目录文件"
     } else {
         Write-Host "用法：把 after-sale-data-compact.json 拖到 上传数据.bat 上"
-        Write-Host "      或直接双击运行（脚本会自动查找桌面/下载目录的文件）"
+        Write-Host "      或直接双击运行（脚本会自动查找项目/桌面/下载目录的文件）"
         Write-Host ""
         Read-Host "按回车退出"
         exit 1

@@ -263,7 +263,7 @@ tbody tr:hover{background:#f8f9ff}
     <div class="mt-16 text-center" style="border-top:1px dashed #e0e0e0;padding-top:16px;display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap">
       <button class="btn btn-outline" onclick="resetUploadData()" style="color:#e15759;border-color:#e15759">🗑️ 清空全部数据</button>
       <button class="btn btn-outline" onclick="downloadCompactJSON()" style="border:1px solid var(--border);background:#fff;color:var(--text);padding:8px 18px;border-radius:var(--radius-sm);font-size:var(--font-sm)">⬇️ 导出 JSON</button>
-      <span class="text-muted" style="font-size:var(--font-sm)">导出后拖到 上传数据.bat 上传</span>
+      <span class="text-muted" style="font-size:var(--font-sm)">导出后拖到 一键更新.bat 上传</span>
     </div>
   </div>
   <div class="debug-panel-toggle" id="debugToggle" onclick="toggleDebug()" style="display:none">🔧 显示诊断日志</div>
@@ -2373,7 +2373,7 @@ function downloadCompactJSON() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('✅ JSON 已导出，拖到 上传数据.bat 上传', 'success');
+    showToast('✅ JSON 已导出，拖到 一键更新.bat 上传', 'success');
   } catch(e) {
     showToast('导出失败: ' + e.message, 'error');
     console.error('downloadCompactJSON error:', e);
