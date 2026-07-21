@@ -1,5 +1,5 @@
 @echo off
-title 独立站灯饰售后分析 - 一键更新
+title Lamp Analysis - One-Click Update
 chcp 65001 >nul
 
 set "PYTHON=C:\Users\DELL\.workbuddy\binaries\python\versions\3.13.12\python.exe"
@@ -7,61 +7,70 @@ set "CONVERT=%~dp0convert_lamp_to_compact.py"
 set "SYNC=%~dp0sync.ps1"
 
 echo ============================================
-echo   独立站灯饰售后分析系统 - 一键更新
+echo   Lamp After-Sale - One-Click Update
 echo ============================================
 echo.
 
-REM 拖入文件优先：xlsx → 转换脚本；json → 跳过转换直接同步
 set "ARG=%~1"
-if not "%ARG%"=="" goto HAS_ARG
-echo [1/2] 从桌面 Excel 转换数据...
+if "%ARG%"=="" goto NO_ARG
+
+if /i "%ARG:~-5%"==".json" goto IS_JSON
+if /i "%ARG:~-5%"==".xlsx" goto IS_XLSX
+
+echo [ERR] Unsupported file type, only .xlsx or .json supported
+goto END
+
+:NO_ARG
+echo [1/2] Auto-detect Excel files from desktop...
+set "ARG="
 goto RUN_CONVERT
 
-:HAS_ARG
-if /i "%ARG:~-5%"==".json" (
-    echo [1/2] 跳过转换（已检测到 JSON，直接同步）
-    set "SKIP_CONVERT=1"
-    goto RUN_SYNC
-)
-echo [1/2] 从拖入的 Excel 转换数据...
-echo       文件: %ARG%
+:IS_JSON
+echo [1/2] JSON detected, skip convert, go to sync
+goto RUN_SYNC
+
+:IS_XLSX
+echo [1/2] Excel detected, converting...
+echo       File: %ARG%
 
 :RUN_CONVERT
-if "%SKIP_CONVERT%"=="1" goto RUN_SYNC
+if not exist "%PYTHON%" goto ERR_PYTHON
+if "%ARG%"=="" goto DO_CONVERT_AUTO
+"%PYTHON%" "%CONVERT%" "%ARG%"
+goto CHECK_CONVERT
 
-if not exist "%PYTHON%" (
-    echo [X] Python 未找到: %PYTHON%
-    pause
-    exit /b 1
-)
+:DO_CONVERT_AUTO
+"%PYTHON%" "%CONVERT%"
 
-if defined ARG (
-    "%PYTHON%" "%CONVERT%" "%ARG%"
-) else (
-    "%PYTHON%" "%CONVERT%"
-)
-if %ERRORLEVEL% neq 0 (
-    echo.
-    echo [X] 数据转换失败！
-    pause
-    exit /b 1
-)
-
+:CHECK_CONVERT
+if errorlevel 1 goto ERR_CONVERT
 echo.
-echo [2/2] 推送到 GitHub...
+echo [2/2] Pushing to GitHub...
 echo.
+
 :RUN_SYNC
 powershell -NoProfile -ExecutionPolicy Bypass -File "%SYNC%"
-if %ERRORLEVEL% neq 0 (
-    echo [X] 同步失败！
-    pause
-    exit /b 1
-)
+if errorlevel 1 goto ERR_SYNC
 
 echo.
 echo ============================================
-echo   完成！1-2 分钟后所有设备可刷新查看
+echo   Done! Wait 1-2 min for all devices to refresh
 echo   https://zhongshanms.github.io/lamp-after-sale-analysis/
 echo ============================================
+goto END
+
+:ERR_PYTHON
+echo [ERR] Python not found: %PYTHON%
+goto END
+
+:ERR_CONVERT
+echo [ERR] Convert failed!
+goto END
+
+:ERR_SYNC
+echo [ERR] Sync failed!
+goto END
+
+:END
 echo.
 pause
