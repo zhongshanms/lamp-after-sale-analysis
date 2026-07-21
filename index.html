@@ -1147,18 +1147,24 @@ async function initData(json) {
   document.getElementById('status-sales').textContent = `销量: ${fmtNum(gSales.length)}-Pack`;
   document.getElementById('status-after').textContent = `售后: ${fmtNum(gAfterSale.length)}-Pack`;
 
-  // Set default date range: 最新数据往前6个月
-  let allDates = [];
-  gAfterSale.forEach(r => { if(r.create_date) allDates.push(r.create_date); });
-  gSales.forEach(r => { if(r.date_date) allDates.push(r.date_date); });
-  allDates.sort();
-  if (allDates.length > 0) {
-    let endD = parseDate(allDates[allDates.length-1]);
-    if (endD) {
-      let startD = new Date(endD);
-      startD.setMonth(startD.getMonth() - 6);
-      setDateInputs(startD, endD);
+  // Set default date range: 最近数据日期往前6个月
+  let latestTs = 0;
+  let latestDate = null;
+  function _updateLatest(d) {
+    if (!d) return;
+    let dt = parseDate(d);
+    if (dt && !isNaN(dt.getTime())) {
+      let ts = dt.getTime();
+      if (ts > latestTs) { latestTs = ts; latestDate = dt; }
     }
+  }
+  gAfterSale.forEach(r => _updateLatest(r.create_date));
+  gSales.forEach(r => _updateLatest(r.date_date));
+  if (latestDate) {
+    let endD = new Date(latestDate);
+    let startD = new Date(endD);
+    startD.setMonth(startD.getMonth() - 6);
+    setDateInputs(startD, endD);
   }
 
   // Populate detail status dropdown
