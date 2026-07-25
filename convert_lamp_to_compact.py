@@ -60,6 +60,9 @@ def classify_responsibility(tag, reason):
     text = f"{tag or ''} {reason or ''}"
     if "越兴" in text:
         return "D-采购-越兴相关"
+    for kw in ["停产", "晚发货", "下架不可售", "漏采"]:
+        if kw in text:
+            return "D-采购-越兴相关"
     for kw in ["发错货", "漏发", "发错", "错发", "少发", "多发"]:
         if kw in text:
             return "B-仓库-发货问题"
