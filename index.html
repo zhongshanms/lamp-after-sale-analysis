@@ -146,6 +146,33 @@ tbody tr:hover{background:#f8f9ff}
 .debug-panel-toggle{font-size:12px;color:#999;cursor:pointer;margin-top:8px;display:inline-block;user-select:none}
 .debug-panel-toggle:hover{color:var(--primary)}
 
+/* ========== Responsibility Logic Module ========== */
+.resp-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
+.resp-col{background:var(--card-bg);border-radius:var(--radius-sm);padding:12px 14px;box-shadow:var(--shadow);border-top:3px solid var(--border)}
+.resp-col[data-r=A]{border-top-color:#e15759}
+.resp-col[data-r=B]{border-top-color:#f28e2b}
+.resp-col[data-r=C]{border-top-color:#59a14f}
+.resp-col[data-r=D]{border-top-color:#b07aa1}
+.resp-col[data-r=E]{border-top-color:#76b7b2}
+.resp-col[data-r=F]{border-top-color:#4e79a7}
+.resp-col h5{margin:0 0 10px 0;font-size:var(--font-md);display:flex;align-items:center;gap:6px}
+.resp-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.resp-col[data-r=A] .resp-dot{background:#e15759}
+.resp-col[data-r=B] .resp-dot{background:#f28e2b}
+.resp-col[data-r=C] .resp-dot{background:#59a14f}
+.resp-col[data-r=D] .resp-dot{background:#b07aa1}
+.resp-col[data-r=E] .resp-dot{background:#76b7b2}
+.resp-col[data-r=F] .resp-dot{background:#4e79a7}
+.resp-chip{display:inline-block;padding:4px 10px;margin:3px 4px 3px 0;background:rgba(0,0,0,.04);border-radius:12px;font-size:0.78rem;color:var(--text);border:1px solid rgba(0,0,0,.06)}
+.resp-col[data-r=A] .resp-chip{background:rgba(225,87,89,.10);border-color:rgba(225,87,89,.20)}
+.resp-col[data-r=B] .resp-chip{background:rgba(242,142,43,.10);border-color:rgba(242,142,43,.20)}
+.resp-col[data-r=C] .resp-chip{background:rgba(89,161,79,.10);border-color:rgba(89,161,79,.20)}
+.resp-col[data-r=D] .resp-chip{background:rgba(176,122,161,.10);border-color:rgba(176,122,161,.20)}
+.resp-col[data-r=E] .resp-chip{background:rgba(118,183,178,.10);border-color:rgba(118,183,178,.20)}
+.resp-col[data-r=F] .resp-chip{background:rgba(78,121,167,.10);border-color:rgba(78,121,167,.20)}
+@media(max-width:1100px){.resp-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:640px){.resp-grid{grid-template-columns:repeat(2,1fr)}}
+
 /* ========== Responsive ========== */
 @media(max-width:768px){
   .stats-cards{grid-template-columns:repeat(2,1fr)}
@@ -316,6 +343,46 @@ tbody tr:hover{background:#f8f9ff}
     <div class="chart-box"><h4>② 售后数量趋势</h4><canvas id="chart2"></canvas></div>
     <div class="chart-box"><h4>③ 售后原因 TOP10</h4><canvas id="chart4"></canvas></div>
     <div class="chart-box"><h4>④ 责任方工单分布</h4><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"><div class="chart-wrap" style="flex:1;min-width:220px"><canvas id="chart5"></canvas></div><div id="legend-chart5" class="chart-legend"></div></div></div>
+  </div>
+
+  <!-- ⑤ 责任方匹配逻辑 -->
+  <div class="chart-box" style="margin-top:16px">
+    <h4 style="border-left:4px solid #e15759;padding-left:10px;color:#e15759">⑤ 责任方匹配逻辑</h4>
+    <p style="color:var(--text-secondary);font-size:var(--font-sm);margin:8px 0 12px 0">基于售后工单的「标签」+「售后原因」文本，按关键词命中优先级归类（命中即返回，不继续匹配）</p>
+    <div class="resp-grid">
+      <div class="resp-col" data-r="A">
+        <h5><span class="resp-dot"></span>A·品控·品质问题</h5>
+        <span class="resp-chip">品质</span><span class="resp-chip">质量</span><span class="resp-chip">灯不亮</span><span class="resp-chip">不亮</span><span class="resp-chip">外观</span>
+        <span class="resp-chip">烧坏</span><span class="resp-chip">烧毁</span><span class="resp-chip">安全</span><span class="resp-chip">隐患</span>
+        <span class="resp-chip">故障</span><span class="resp-chip">损坏</span><span class="resp-chip">缺陷</span><span class="resp-chip">不良</span>
+        <span class="resp-chip">开裂</span><span class="resp-chip">生锈</span><span class="resp-chip">掉漆</span><span class="resp-chip">刮花</span><span class="resp-chip">划痕</span><span class="resp-chip">工艺</span>
+      </div>
+      <div class="resp-col" data-r="B">
+        <h5><span class="resp-dot"></span>B·仓库·发货问题</h5>
+        <span class="resp-chip">发错货</span><span class="resp-chip">漏发</span><span class="resp-chip">发错</span><span class="resp-chip">错发</span><span class="resp-chip">少发</span><span class="resp-chip">多发</span>
+      </div>
+      <div class="resp-col" data-r="F">
+        <h5><span class="resp-dot"></span>F·物流·运输问题</h5>
+        <span class="resp-chip">物流</span><span class="resp-chip">运输</span><span class="resp-chip">快递</span><span class="resp-chip">破损</span><span class="resp-chip">丢件</span><span class="resp-chip">丢失</span>
+        <span class="resp-chip">海关</span><span class="resp-chip">转运</span><span class="resp-chip">第三方</span>
+      </div>
+      <div class="resp-col" data-r="C">
+        <h5><span class="resp-dot"></span>C·客户·个人原因</h5>
+        <span class="resp-chip">不喜欢</span><span class="resp-chip">不想要</span><span class="resp-chip">无理由</span><span class="resp-chip">下错</span><span class="resp-chip">下单错</span>
+        <span class="resp-chip">尺寸</span><span class="resp-chip">大小</span><span class="resp-chip">颜色</span><span class="resp-chip">买错</span><span class="resp-chip">拍错</span>
+        <span class="resp-chip">重复</span><span class="resp-chip">不要了</span><span class="resp-chip">退货</span><span class="resp-chip">个人</span><span class="resp-chip">不满</span>
+        <span class="resp-chip">折扣</span><span class="resp-chip">不需要</span><span class="resp-chip">风格</span><span class="resp-chip">色差</span><span class="resp-chip">交期</span>
+      </div>
+      <div class="resp-col" data-r="D">
+        <h5><span class="resp-dot"></span>D·采购·越兴相关</h5>
+        <span class="resp-chip">越兴</span>
+      </div>
+      <div class="resp-col" data-r="E">
+        <h5><span class="resp-dot"></span>E·运营·信息问题</h5>
+        <span class="resp-chip">描述</span><span class="resp-chip">说明</span><span class="resp-chip">图物</span><span class="resp-chip">不符</span><span class="resp-chip">安装</span>
+        <span class="resp-chip">网页</span><span class="resp-chip">listing</span><span class="resp-chip">页面</span><span class="resp-chip">参数</span>
+      </div>
+    </div>
   </div>
 </div>
 
