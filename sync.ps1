@@ -182,22 +182,86 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # ── 推送 ──
-Write-Host ""
-Write-Host "[4/4] 推送到 GitHub..."
-& "$Git" push origin $BRANCH
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[X] 推送失败！常见原因：网络不通 / SSH 密钥未配置 / 权限问题"
-    Read-Host "按回车退出"
-    exit 1
+$BT_HOST = "119.29.107.118"
+$BT_PORT = "53844"
+$BT_USER = "root"
+$BT_KEY  = "$env:USERPROFILE\.ssh\lamp_baota_rsa"
+$BT_PATH = "/www/wwwroot/lamp.zhongshanzhiliang.top"
+
+function Push-ToRemote {
+    param([string]$Remote, [string]$Label)
+    Write-Host ""
+    Write-Host "[4/4] 推送到 $Label ..."
+    $attempt = 0; $maxTries = 3
+    while ($attempt -lt $maxTries) {
+        $attempt++
+        & "$Git" push $Remote $BRANCH 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  [OK] $Label 推送成功"
+            return $true
+        }
+        if ($attempt -lt $maxTries) {
+            Write-Host "  [重试 $attempt/$maxTries] $Label 推送失败，3秒后重试..."
+            Start-Sleep 3
+        }
+    }
+    Write-Host "  [FAIL] $Label 推送失败（已重试 $maxTries 次）"
+    return $false
 }
-Write-Host "  [OK] 已推送"
+
+$githubOk = Push-ToRemote origin "GitHub"
+
+# ── 宝塔服务器同步 ──
+$btOk = $false
+if (Test-Path $BT_KEY) {
+    Write-Host ""
+    Write-Host "[5/5] 同步宝塔服务器..."
+    $sshCmd  = "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i `"$BT_KEY`" -p $BT_PORT `"$BT_USER@$BT_HOST`""
+    $gitCmd  = "cd $BT_PATH && git fetch origin $BRANCH && git reset --hard FETCH_HEAD"
+    $fullCmd = "$sshCmd `"$gitCmd`""
+    
+    $attempt = 0; $maxBT = 3
+    while ($attempt -lt $maxBT) {
+        $attempt++
+        try {
+            $result = Invoke-Expression $fullCmd 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  [OK] 宝塔服务器同步成功"
+                Write-Host "  https://lamp.zhongshanzhiliang.top/"
+                $btOk = $true
+                break
+            }
+        } catch { }
+        if ($attempt -lt $maxBT) {
+            Write-Host "  [重试 $attempt/$maxBT] SSH 连接失败，5秒后重试..."
+            Start-Sleep 5
+        }
+    }
+    if (-not $btOk) {
+        Write-Host "  [FAIL] 宝塔服务器同步失败（已重试 $maxBT 次）"
+        if ($result) { Write-Host "  详情: $result" }
+    }
+} else {
+    Write-Host ""
+    Write-Host "[5/5] 跳过宝塔同步（SSH 密钥未找到: $BT_KEY）"
+}
 
 Write-Host ""
 Write-Host "============================================"
-Write-Host "  同步完成！"
+if ($githubOk -and $btOk) {
+    Write-Host "  同步完成 [SUCCESS]"
+} elseif ($githubOk -or $btOk) {
+    Write-Host "  同步完成 [PARTIAL]"
+    if ($githubOk) { Write-Host "  GitHub: OK  |  宝塔: FAIL" }
+    else           { Write-Host "  GitHub: FAIL  |  宝塔: OK" }
+} else {
+    Write-Host "  同步完成 [FAILED] — 所有远程推送失败"
+}
 Write-Host ""
-Write-Host "  1-2 分钟后所有设备自动更新"
-Write-Host "  https://zhongshanms.github.io/lamp-after-sale-analysis/"
+Write-Host "  GitHub: https://zhongshanms.github.io/lamp-after-sale-analysis/"
+if ($btOk) {
+    Write-Host "  宝塔:   https://lamp.zhongshanzhiliang.top/"
+}
 Write-Host "============================================"
 Write-Host ""
 Read-Host "按回车退出"
