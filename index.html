@@ -220,7 +220,7 @@ tbody tr:hover{background:#f8f9ff}
 
 <!-- Header -->
 <header class="header">
-  <h1>📊 独立站灯饰售后分析系统<span id="data-date-range" style="font-size:0.72rem;font-weight:400;color:#a0aec0;margin-left:10px;vertical-align:middle;white-space:nowrap"></span></h1>
+  <h1>📊 独立站灯饰售后分析系统<span id="data-date-range" style="font-size:0.72rem;font-weight:400;color:#a0aec0;margin-left:10px;vertical-align:middle;white-space:nowrap"></span><span id="data-version-tag" style="font-size:0.62rem;font-weight:600;color:#fbbf24;margin-left:8px;padding:2px 8px;border:1px solid #fbbf24;border-radius:4px;vertical-align:middle"></span></h1>
   <div class="header-right">
     <div class="data-status">
       <span id="status-sales">销量: 加载中...</span>
@@ -737,6 +737,8 @@ async function loadData() {
       initData(json);
       cacheDataInBackground(json);
       loadedFromJSON = true;
+      window._dataSource = 'server';
+      window.gData = { meta: json.m || json.meta || {} };
       var overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.style.display = 'none';
       debugLog('数据来源: 预置JSON (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
@@ -754,6 +756,8 @@ async function loadData() {
       if (afterCount > 0 || salesCount > 0) {
         if (afterCount > 0) await rebuildFromUploadDB('after');
         if (salesCount > 0) await rebuildFromUploadDB('sales');
+        window._dataSource = 'upload';
+        window.gData = { meta: { generated_at: 'IndexedDB上传数据' } };
         document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '-Pack';
         document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '-Pack';
         updateDateRangeLabel();
@@ -1264,6 +1268,17 @@ function updateDateRangeLabel() {
   var minD = allDates[0].slice(0, 10);
   var maxD = allDates[allDates.length - 1].slice(0, 10);
   el.textContent = '(' + minD + ' ~ ' + maxD + ')';
+
+  // 数据版本标签：显示 generated_at + 数据来源
+  var tagEl = document.getElementById('data-version-tag');
+  if (tagEl) {
+    var genAt = (window.gData && window.gData.meta && window.gData.meta.generated_at) || '';
+    var src = window._dataSource || 'unknown';
+    var srcLabel = src === 'server' ? '✓ 服务器' : (src === 'upload' ? '⚠ UploadDB' : '?');
+    tagEl.textContent = srcLabel + (genAt ? ' · ' + genAt : '');
+    tagEl.style.color = src === 'server' ? '#34d399' : '#fbbf24';
+    tagEl.style.borderColor = src === 'server' ? '#34d399' : '#fbbf24';
+  }
 }
 
 // ========== DATA FILTERING ==========
