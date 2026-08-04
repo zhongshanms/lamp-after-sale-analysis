@@ -220,7 +220,7 @@ tbody tr:hover{background:#f8f9ff}
 
 <!-- Header -->
 <header class="header">
-  <h1>📊 独立站灯饰售后分析系统<span id="data-date-range" style="font-size:0.72rem;font-weight:400;color:#a0aec0;margin-left:10px;vertical-align:middle;white-space:nowrap"></span><span id="data-version-tag" style="font-size:0.62rem;font-weight:600;color:#fbbf24;margin-left:8px;padding:2px 8px;border:1px solid #fbbf24;border-radius:4px;vertical-align:middle"></span></h1>
+  <h1>📊 独立站灯饰售后分析系统<span id="data-date-range" style="font-size:0.72rem;font-weight:400;color:#a0aec0;margin-left:10px;vertical-align:middle;white-space:nowrap"></span></h1>
   <div class="header-right">
     <div class="data-status">
       <span id="status-sales">销量: 加载中...</span>
@@ -702,26 +702,6 @@ function fetchWithTimeout(url, timeoutMs, options) {
 async function loadData() {
   let detailEl = document.getElementById('loading-detail');
 
-  // ── 主动清理服务器 JSON 缓存（DataCache），避免旧版数据污染（不影响 UploadDB） ──
-  try {
-    await new Promise(function(res, rej) {
-      let r = indexedDB.deleteDatabase('DataCache');
-      r.onsuccess = function() { console.log('[CACHE] DataCache cleared'); res(); };
-      r.onerror = function() { res(); };
-      r.onblocked = function() { console.warn('[CACHE] DataCache clear blocked'); res(); };
-    });
-  } catch(e) { console.warn('[CACHE] clear failed:', e); }
-
-  // ── 诊断：实际 fetch 拉到的响应头 + 数据版本 ──
-  try {
-    let diagUrl = './data/after-sale-data-compact.json?diag=' + Date.now();
-    let diagR = await fetchWithTimeout(diagUrl, 15000, {cache: 'no-store'});
-    let h = { status: diagR.status, url: diagR.url, contentLength: diagR.headers.get('content-length'), serverDate: diagR.headers.get('last-modified'), cache: diagR.headers.get('cache-control') };
-    let diagJ = await diagR.json();
-    console.log('[DIAG] fetch response:', JSON.stringify(h));
-    console.log('[DIAG] fetch json:', diagJ.m.generated_at, '| max=', diagJ.m.date_range.after_sale_max, '| total=', diagJ.m.total_after_sale);
-  } catch(e) { console.warn('[DIAG] fetch failed:', e.message); }
-
   // ── 彻底重置模式：不加载任何数据，页面空白 ──
   if (sessionStorage.getItem('data_reset_pending') === '1') {
     console.log('[RESET] Full reset mode: skipping all data loading');
@@ -748,8 +728,6 @@ async function loadData() {
       initData(json);
       cacheDataInBackground(json);
       loadedFromJSON = true;
-      window._dataSource = 'server';
-      window.gData = { meta: json.m || json.meta || {} };
       var overlay = document.getElementById('loading-overlay');
       if (overlay) overlay.style.display = 'none';
       debugLog('数据来源: 预置JSON (售后=' + gAfterSale.length + ' 销量=' + gSales.length + ')', 'success');
@@ -767,8 +745,6 @@ async function loadData() {
       if (afterCount > 0 || salesCount > 0) {
         if (afterCount > 0) await rebuildFromUploadDB('after');
         if (salesCount > 0) await rebuildFromUploadDB('sales');
-        window._dataSource = 'upload';
-        window.gData = { meta: { generated_at: 'IndexedDB上传数据' } };
         document.getElementById('status-sales').textContent = '销量: ' + fmtNum(gSales.length) + '-Pack';
         document.getElementById('status-after').textContent = '售后: ' + fmtNum(gAfterSale.length) + '-Pack';
         updateDateRangeLabel();
@@ -1279,17 +1255,6 @@ function updateDateRangeLabel() {
   var minD = allDates[0].slice(0, 10);
   var maxD = allDates[allDates.length - 1].slice(0, 10);
   el.textContent = '(' + minD + ' ~ ' + maxD + ')';
-
-  // 数据版本标签：显示 generated_at + 数据来源
-  var tagEl = document.getElementById('data-version-tag');
-  if (tagEl) {
-    var genAt = (window.gData && window.gData.meta && window.gData.meta.generated_at) || '';
-    var src = window._dataSource || 'unknown';
-    var srcLabel = src === 'server' ? '✓ 服务器' : (src === 'upload' ? '⚠ UploadDB' : '?');
-    tagEl.textContent = srcLabel + (genAt ? ' · ' + genAt : '');
-    tagEl.style.color = src === 'server' ? '#34d399' : '#fbbf24';
-    tagEl.style.borderColor = src === 'server' ? '#34d399' : '#fbbf24';
-  }
 }
 
 // ========== DATA FILTERING ==========
