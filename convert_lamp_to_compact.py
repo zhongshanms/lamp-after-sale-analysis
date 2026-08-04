@@ -167,16 +167,16 @@ def main():
         tag = str(row[find_col(ah, "标签")]).strip() if find_col(ah, "标签") >= 0 and row[find_col(ah, "标签")] else ""
         prod_name = str(row[find_col(ah, "产品名称")]).strip() if find_col(ah, "产品名称") >= 0 and row[find_col(ah, "产品名称")] else ""
 
-        ct = parse_date(row[find_col(ah, "创建时间")]) if find_col(ah, "创建时间") >= 0 else ""
-        ot = parse_date(row[find_col(ah, "订购时间")]) if find_col(ah, "订购时间") >= 0 else ""
+        ct = parse_date(row[find_col(ah, "创建时间", "创建人/创建时间", "创建时间/创建人", "创建日期")]) if find_col(ah, "创建时间", "创建人/创建时间", "创建时间/创建人", "创建日期") >= 0 else ""
+        ot = parse_date(row[find_col(ah, "订购时间", "下单时间", "订单时间")]) if find_col(ah, "订购时间", "下单时间", "订单时间") >= 0 else ""
         rs = str(row[find_col(ah, "退款状态")]).strip() if find_col(ah, "退款状态") >= 0 and row[find_col(ah, "退款状态")] else ""
         oa = safe_float(row[find_col(ah, "订单金额")]) if find_col(ah, "订单金额") >= 0 else 0
         ra = safe_float(row[find_col(ah, "退款金额")]) if find_col(ah, "退款金额") >= 0 else 0
         rq = safe_int(row[find_col(ah, "退货数量")], 1) if find_col(ah, "退货数量") >= 0 else 1
 
-        year = parse_year(row[find_col(ah, "创建时间")]) if find_col(ah, "创建时间") >= 0 else 0
+        year = parse_year(row[find_col(ah, "创建时间", "创建人/创建时间", "创建时间/创建人", "创建日期")]) if find_col(ah, "创建时间", "创建人/创建时间", "创建时间/创建人", "创建日期") >= 0 else 0
         if year < 2020:
-            year = parse_year(row[find_col(ah, "订购时间")]) if find_col(ah, "订购时间") >= 0 else 0
+            year = parse_year(row[find_col(ah, "订购时间", "下单时间", "订单时间")]) if find_col(ah, "订购时间", "下单时间", "订单时间") >= 0 else 0
 
         resp = classify_responsibility(tag, reason)
 
