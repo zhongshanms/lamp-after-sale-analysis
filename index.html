@@ -685,10 +685,11 @@ function showUploadTab(show) {
 // ========== DATA LOADING ==========
 
 // Fetch with timeout helper
-function fetchWithTimeout(url, timeoutMs) {
+function fetchWithTimeout(url, timeoutMs, options) {
+  options = options || {};
   return new Promise(function(resolve, reject) {
     let timer = setTimeout(function() { reject(new Error('请求超时 (' + timeoutMs/1000 + 's)')); }, timeoutMs);
-    fetch(url, {cache: 'no-store'}).then(function(resp) {
+    fetch(url, options).then(function(resp) {
       clearTimeout(timer);
       resolve(resp);
     }).catch(function(err) {
@@ -729,8 +730,8 @@ async function loadData() {
   if (detailEl) detailEl.textContent = '正在加载数据...';
   let loadedFromJSON = false;
   try {
-    let dataUrl = './data/after-sale-data-compact-2026.json?t=' + Date.now();
-    let resp = await fetchWithTimeout(dataUrl, 30000);
+    let dataUrl = './data/after-sale-data-compact.json?v=' + Date.now().toString(36);
+    let resp = await fetchWithTimeout(dataUrl, 30000, {cache: 'no-store'});
     if (resp.ok) {
       if (detailEl) detailEl.textContent = '正在解析数据...';
       let json = await resp.json();
