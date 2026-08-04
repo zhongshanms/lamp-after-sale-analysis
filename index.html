@@ -701,6 +701,16 @@ function fetchWithTimeout(url, timeoutMs) {
 async function loadData() {
   let detailEl = document.getElementById('loading-detail');
 
+  // ── 主动清理服务器 JSON 缓存（DataCache），避免旧版数据污染（不影响 UploadDB） ──
+  try {
+    await new Promise(function(res, rej) {
+      let r = indexedDB.deleteDatabase('DataCache');
+      r.onsuccess = function() { console.log('[CACHE] DataCache cleared'); res(); };
+      r.onerror = function() { res(); };
+      r.onblocked = function() { console.warn('[CACHE] DataCache clear blocked'); res(); };
+    });
+  } catch(e) { console.warn('[CACHE] clear failed:', e); }
+
   // ── 彻底重置模式：不加载任何数据，页面空白 ──
   if (sessionStorage.getItem('data_reset_pending') === '1') {
     console.log('[RESET] Full reset mode: skipping all data loading');
