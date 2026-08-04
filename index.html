@@ -688,7 +688,7 @@ function showUploadTab(show) {
 function fetchWithTimeout(url, timeoutMs) {
   return new Promise(function(resolve, reject) {
     let timer = setTimeout(function() { reject(new Error('请求超时 (' + timeoutMs/1000 + 's)')); }, timeoutMs);
-    fetch(url).then(function(resp) {
+    fetch(url, {cache: 'no-cache'}).then(function(resp) {
       clearTimeout(timer);
       resolve(resp);
     }).catch(function(err) {
