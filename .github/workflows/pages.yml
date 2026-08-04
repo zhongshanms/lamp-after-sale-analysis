@@ -27,5 +27,6 @@ jobs:
           path: '.'
         env:
           BUILD_VER: '20260715'
-      - id: deployment
-      - uses: actions/deploy-pages@v4
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
