@@ -719,7 +719,7 @@ async function loadData() {
   if (detailEl) detailEl.textContent = '正在加载数据...';
   let loadedFromJSON = false;
   try {
-    let dataUrl = './data/after-sale-data-compact.json';
+    let dataUrl = './data/after-sale-data-compact.json?t=' + Date.now();
     let resp = await fetchWithTimeout(dataUrl, 30000);
     if (resp.ok) {
       if (detailEl) detailEl.textContent = '正在解析数据...';
