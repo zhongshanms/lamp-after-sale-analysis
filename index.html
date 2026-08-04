@@ -712,6 +712,16 @@ async function loadData() {
     });
   } catch(e) { console.warn('[CACHE] clear failed:', e); }
 
+  // ── 诊断：实际 fetch 拉到的响应头 + 数据版本 ──
+  try {
+    let diagUrl = './data/after-sale-data-compact.json?diag=' + Date.now();
+    let diagR = await fetchWithTimeout(diagUrl, 15000, {cache: 'no-store'});
+    let h = { status: diagR.status, url: diagR.url, contentLength: diagR.headers.get('content-length'), serverDate: diagR.headers.get('last-modified'), cache: diagR.headers.get('cache-control') };
+    let diagJ = await diagR.json();
+    console.log('[DIAG] fetch response:', JSON.stringify(h));
+    console.log('[DIAG] fetch json:', diagJ.m.generated_at, '| max=', diagJ.m.date_range.after_sale_max, '| total=', diagJ.m.total_after_sale);
+  } catch(e) { console.warn('[DIAG] fetch failed:', e.message); }
+
   // ── 彻底重置模式：不加载任何数据，页面空白 ──
   if (sessionStorage.getItem('data_reset_pending') === '1') {
     console.log('[RESET] Full reset mode: skipping all data loading');
