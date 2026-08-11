@@ -12,6 +12,44 @@ except ImportError:
     import openpyxl
 
 
+# ── DLP 加密检测与解密（蚂蚁集团 PayGuard BlueShield） ──
+DLP_MAGIC = b'\x88\x7d\x1c'
+
+def _is_dlp_encrypted(filepath):
+    """检测文件是否被 PayGuard DLP AES 加密（首 3 字节 88 7d 1c）"""
+    try:
+        with open(filepath, 'rb') as f:
+            return f.read(3) == DLP_MAGIC
+    except Exception:
+        return False
+
+def _decrypt_via_wps(encrypted_path):
+    """通过 WPS COM SaveCopyAs 绕过 DLP 重加密，得到标准 xlsx（PK 头）"""
+    import win32com.client
+    wps = win32com.client.Dispatch("Ket.Application")
+    try:
+        wps.Visible = False
+        wps.DisplayAlerts = False
+        wb = wps.Workbooks.Open(encrypted_path, ReadOnly=True)
+        tmp_dir = os.environ.get("TEMP", os.path.dirname(encrypted_path))
+        out_path = os.path.join(tmp_dir, f"dec_lamp_{os.getpid()}_{int(time.time()*1000)}.xlsx")
+        wb.SaveCopyAs(out_path)
+        wb.Close(False)
+        return out_path
+    finally:
+        try:
+            wps.Quit()
+        except Exception:
+            pass
+
+def _ensure_decrypted(filepath):
+    """若文件被 DLP 加密则返回解密副本路径，否则原样返回"""
+    if filepath and os.path.exists(filepath) and _is_dlp_encrypted(filepath):
+        print(f"[解密] 检测到 DLP 加密，WPS COM SaveCopyAs: {os.path.basename(filepath)}")
+        return _decrypt_via_wps(filepath)
+    return filepath
+
+
 # ── 文件路径 ──
 import glob as _glob
 
@@ -22,12 +60,16 @@ def _find_latest(desktop, pattern):
 DESKTOP = os.path.join(os.environ.get("USERPROFILE", ""), "Desktop")
 VALID_SKU_PREFIXES = {"DJ", "CL", "PL", "CF", "WL", "CD", "TL", "FL"}
 
+# 输入参数先解密（拖入或命令行传入的 xlsx）
+_arg_raw = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].lower().endswith((".xlsx", ".xls")) else None
+_arg = _ensure_decrypted(_arg_raw) if _arg_raw else None
+
 # 检测合并文件（含"售后明细"sheet）
 MERGED_FILE = None
-if len(sys.argv) > 1 and sys.argv[1].lower().endswith((".xlsx", ".xls")):
-    _wb = openpyxl.load_workbook(sys.argv[1], data_only=True, read_only=True)
+if _arg:
+    _wb = openpyxl.load_workbook(_arg, data_only=True, read_only=True)
     if "售后明细" in _wb.sheetnames:
-        MERGED_FILE = sys.argv[1]
+        MERGED_FILE = _arg
     _wb.close()
 
 if MERGED_FILE:
@@ -35,13 +77,13 @@ if MERGED_FILE:
     INPUT_MODE = "merged"
     print(f"[合并模式] 读取: {MERGED_FILE}")
 else:
-    AFTERSALE_FILE = (
-        sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].lower().endswith((".xlsx", ".xls")) else
-        _find_latest(DESKTOP, "独立站灯饰售后工单*.xlsx")
-    )
-    SALES_FILE = _find_latest(DESKTOP, "独立站灯饰销量统计*.xlsx") if len(sys.argv) <= 1 else (
-        sys.argv[2] if len(sys.argv) > 2 else _find_latest(DESKTOP, "独立站灯饰销量统计*.xlsx")
-    )
+    AFTERSALE_FILE = _arg or _ensure_decrypted(_find_latest(DESKTOP, "独立站灯饰售后工单*.xlsx"))
+    if len(sys.argv) <= 1:
+        SALES_FILE = _ensure_decrypted(_find_latest(DESKTOP, "独立站灯饰销量统计*.xlsx"))
+    elif len(sys.argv) > 2:
+        SALES_FILE = _ensure_decrypted(sys.argv[2]) if sys.argv[2].lower().endswith((".xlsx", ".xls")) else _ensure_decrypted(_find_latest(DESKTOP, "独立站灯饰销量统计*.xlsx"))
+    else:
+        SALES_FILE = _ensure_decrypted(_find_latest(DESKTOP, "独立站灯饰销量统计*.xlsx"))
     INPUT_MODE = "split"
     if not AFTERSALE_FILE or not os.path.exists(AFTERSALE_FILE):
         print("[X] 未找到售后工单文件，请在桌面放置 '独立站灯饰售后工单*.xlsx' 或拖入 xlsx")
@@ -70,12 +112,12 @@ def classify_responsibility(tag, reason):
         if kw in text:
             return "F-物流-运输问题"
     for kw in ["品质", "质量", "灯不亮", "不亮", "外观", "烧坏", "烧毁", "安全", "隐患",
-               "故障", "损坏", "缺陷", "不良", "开裂", "生锈", "掉漆", "刮花", "划痕", "工艺", "尺寸", "颜色"]:
+               "故障", "损坏", "缺陷", "不良", "开裂", "生锈", "掉漆", "刮花", "划痕", "工艺", "尺寸", "颜色", "色差"]:
         if kw in text:
             return "A-品控-品质问题"
     for kw in ["不喜欢", "不想要", "无理由", "下错", "下单错", "大小",
                "买错", "拍错", "重复", "不要了", "退货", "个人", "不满", "折扣",
-               "不需要", "风格", "色差", "交期"]:
+               "不需要", "风格", "交期"]:
         if kw in text:
             return "C-客户-个人原因"
     for kw in ["描述", "说明", "图物", "不符", "安装", "网页", "listing", "页面", "参数"]:
@@ -103,7 +145,17 @@ def parse_date(val):
             base = datetime(1899, 12, 30)
             return (base + __import__('datetime').timedelta(days=int(val))).strftime("%Y-%m-%d %H:%M:%S")
     s = str(val).strip()
-    return s[:19] if s else ""
+    if not s:
+        return ""
+    # openpyxl read_only 模式下，文本格式单元格中的数字会以字符串形式返回（如 "46215.7269907407"）
+    try:
+        serial = float(s)
+        if 25569 < serial < 80000:  # 1950-2119 范围内的 Excel 序列号
+            base = datetime(1899, 12, 30)
+            return (base + __import__('datetime').timedelta(days=serial)).strftime("%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        pass
+    return s[:19]
 
 def parse_year(val):
     if val is None:
@@ -167,16 +219,16 @@ def main():
         tag = str(row[find_col(ah, "标签")]).strip() if find_col(ah, "标签") >= 0 and row[find_col(ah, "标签")] else ""
         prod_name = str(row[find_col(ah, "产品名称")]).strip() if find_col(ah, "产品名称") >= 0 and row[find_col(ah, "产品名称")] else ""
 
-        ct = parse_date(row[find_col(ah, "创建时间", "创建人/创建时间", "创建时间/创建人", "创建日期")]) if find_col(ah, "创建时间", "创建人/创建时间", "创建时间/创建人", "创建日期") >= 0 else ""
-        ot = parse_date(row[find_col(ah, "订购时间", "下单时间", "订单时间")]) if find_col(ah, "订购时间", "下单时间", "订单时间") >= 0 else ""
+        ct = parse_date(row[find_col(ah, "创建时间")]) if find_col(ah, "创建时间") >= 0 else ""
+        ot = parse_date(row[find_col(ah, "订购时间")]) if find_col(ah, "订购时间") >= 0 else ""
         rs = str(row[find_col(ah, "退款状态")]).strip() if find_col(ah, "退款状态") >= 0 and row[find_col(ah, "退款状态")] else ""
         oa = safe_float(row[find_col(ah, "订单金额")]) if find_col(ah, "订单金额") >= 0 else 0
         ra = safe_float(row[find_col(ah, "退款金额")]) if find_col(ah, "退款金额") >= 0 else 0
         rq = safe_int(row[find_col(ah, "退货数量")], 1) if find_col(ah, "退货数量") >= 0 else 1
 
-        year = parse_year(row[find_col(ah, "创建时间", "创建人/创建时间", "创建时间/创建人", "创建日期")]) if find_col(ah, "创建时间", "创建人/创建时间", "创建时间/创建人", "创建日期") >= 0 else 0
+        year = parse_year(row[find_col(ah, "创建时间")]) if find_col(ah, "创建时间") >= 0 else 0
         if year < 2020:
-            year = parse_year(row[find_col(ah, "订购时间", "下单时间", "订单时间")]) if find_col(ah, "订购时间", "下单时间", "订单时间") >= 0 else 0
+            year = parse_year(row[find_col(ah, "订购时间")]) if find_col(ah, "订购时间") >= 0 else 0
 
         resp = classify_responsibility(tag, reason)
 
