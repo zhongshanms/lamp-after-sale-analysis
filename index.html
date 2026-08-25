@@ -1514,6 +1514,8 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
   let salesVals = periods.map(p => groupMapSL[p]||0);
   let afterVals = periods.map(p => (groupMapAS[p]||{}).count||0);
   let afterRateVals = periods.map((p,i) => salesVals[i] > 0 ? (afterVals[i]/salesVals[i]*100).toFixed(1) : '0.0');
+  // 所选时间段内的平均售后率（加权：Σ售后数/Σ订单量）
+  let avgRate = totalOrders > 0 ? (afterCount / totalOrders * 100).toFixed(1) : 0;
 
   destroyChart('chartTrend');
   let trendCtx = document.getElementById('chartTrend');
@@ -1539,6 +1541,18 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
             borderRadius: 4,
             order: 2,
           },
+          // 平均售后率 — 红色虚线（右轴，浮于柱状图之上）
+          {
+            type: 'line',
+            label: `平均售后率 ${avgRate}%`,
+            data: periods.map(() => avgRate),
+            borderColor: '#e15759',
+            borderDash: [6, 6],
+            borderWidth: 2,
+            pointRadius: 0,
+            yAxisID: 'y1',
+            order: 0,
+          },
         ]
       },
       options: {
@@ -1563,6 +1577,13 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
         },
         scales: {
           y: { beginAtZero: true, ticks: { callback: v => fmtNum(v) }, grid: { color: '#f0f0f0' } },
+          y1: {
+            position: 'right',
+            beginAtZero: true,
+            max: Math.max(10, Math.ceil(avgRate * 2)),
+            ticks: { callback: v => v + '%' },
+            grid: { drawOnChartArea: false }
+          },
           x: { grid: { display: false } }
         }
       },
