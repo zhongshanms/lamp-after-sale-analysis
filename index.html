@@ -1568,7 +1568,7 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
                 let i = items[0]?.dataIndex;
                 if (i !== undefined && salesVals[i] > 0) {
                   let rate = (afterVals[i] / salesVals[i] * 100).toFixed(1);
-                  return `售后率: ${rate}%`;
+                  return [`售后率: ${rate}%`, `平均售后率: ${avgRate}%`];
                 }
                 return '';
               }
