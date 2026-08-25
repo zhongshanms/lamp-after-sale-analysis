@@ -1541,11 +1541,11 @@ function applyOverviewWithParams(start, end, granularity, skuTerm) {
             borderRadius: 4,
             order: 2,
           },
-          // 平均售后率 — 红色虚线（右轴，浮于柱状图之上）
+          // 平均售后率 — 仅作图例（线由 avgRateLine 插件画，避免双线）
           {
             type: 'line',
             label: `平均售后率 ${avgRate}%`,
-            data: periods.map(() => avgRate),
+            data: [],
             borderColor: '#e15759',
             borderDash: [6, 6],
             borderWidth: 2,
