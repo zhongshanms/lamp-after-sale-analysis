@@ -4,6 +4,14 @@
 
 $ErrorActionPreference = "Stop"
 
+# 结束前等待（仅交互式控制台；重定向 stdin / -NonInteractive 调用时直接返回，避免抛错导致假失败）
+function Wait-Exit {
+    if ($env:SYNC_NO_PAUSE) { return }
+    try {
+        if (-not [Console]::IsInputRedirected) { Read-Host "按回车退出" }
+    } catch { }
+}
+
 # 工作目录：脚本所在目录
 $WORKDIR = $PSScriptRoot
 $REPO    = "git@github.com:zhongshanms/lamp-after-sale-analysis.git"
@@ -33,14 +41,14 @@ if (-not $SourceFile) {
         Write-Host "用法：把 after-sale-data-compact.json 拖到 上传数据.bat 上"
         Write-Host "      或直接双击运行（脚本会自动查找项目/桌面/下载目录的文件）"
         Write-Host ""
-        Read-Host "按回车退出"
+        Wait-Exit
         exit 1
     }
 }
 
 if (-not (Test-Path -LiteralPath $SourceFile)) {
     Write-Host "[X] 文件不存在：$SourceFile"
-    Read-Host "按回车退出"
+    Wait-Exit
     exit 1
 }
 
@@ -61,7 +69,7 @@ if ($IsEncrypted) {
 
     if (-not (Test-Path $DecScript)) {
         Write-Host "[X] 解密脚本不存在: $DecScript"
-        Read-Host "按回车退出"
+        Wait-Exit
         exit 1
     }
 
@@ -74,13 +82,15 @@ if ($IsEncrypted) {
         $DecResult | ForEach-Object { Write-Host "    $_" }
         Write-Host ""
         Write-Host "手动解决方法：用记事本/WPS 打开文件 → 另存为 → 重新运行"
-        Read-Host "按回车退出"
+        Wait-Exit
         exit 1
     }
 }
 
 # ── 查找 Git ──
 $Git = @(
+    "$env:USERPROFILE\.workbuddy\binaries\PortableGit\versions\*\mingw64\bin\git.exe",
+    "$env:USERPROFILE\.workbuddy\binaries\PortableGit\versions\*\cmd\git.exe",
     "$env:USERPROFILE\.workbuddy\vendor\PortableGit\mingw64\bin\git.exe",
     "$env:USERPROFILE\.workbuddy\vendor\PortableGit\cmd\git.exe",
     "$env:USERPROFILE\scoop\shims\git.exe",
@@ -91,7 +101,15 @@ $Git = @(
     "C:\Program Files (x86)\Git\cmd\git.exe",
     "$env:LOCALAPPDATA\Programs\Git\bin\git.exe",
     "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe"
-) | Where-Object { Test-Path $_ } | Select-Object -First 1
+) | ForEach-Object {
+    # 处理通配符（如 binaries\PortableGit\versions\*）
+    if ($_ -like '*\*\*') {
+        $glob = $_
+        Get-ChildItem -Path $glob -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+    } else {
+        if (Test-Path $_) { $_ }
+    }
+} | Where-Object { $_ } | Select-Object -First 1
 
 if (-not $Git) {
     $GitCmd = Get-Command git -ErrorAction SilentlyContinue
@@ -122,15 +140,26 @@ if (-not $Git) {
 if (-not $Git) {
     Write-Host "[X] 未找到 Git，请安装 Git for Windows"
     Write-Host "    下载地址：https://git-scm.com/download/win"
-    Read-Host "按回车退出"
+    Wait-Exit
     exit 1
 }
 
 Write-Host "[Git] $Git"
-& "$Git" --version | Out-Null
+
+# 统一执行 git：git 的进度/提示走 stderr，PS5.1 在 EAP=Stop 且输出被重定向时会把它升级为终止性错误，
+# 导致非交互/被管道调用时脚本中途假失败。这里临时放开 EAP，并保留 $LASTEXITCODE 供调用方判断。
+function Git-Run {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$GitArgs)
+    $saveEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    try { & "$script:Git" @GitArgs 2>&1 | ForEach-Object { "$_" } }
+    finally { $ErrorActionPreference = $saveEAP }
+}
+
+Git-Run --version | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[X] Git 无法运行"
-    Read-Host "按回车退出"
+    Wait-Exit
     exit 1
 }
 Write-Host ""
@@ -142,27 +171,26 @@ if (Test-Path (Join-Path $CACHE ".git")) {
     Remove-Item -Path ".git\index.lock" -Force -ErrorAction SilentlyContinue
     Remove-Item -Path ".git\refs\heads\$BRANCH.lock" -Force -ErrorAction SilentlyContinue
     # 补全老浅克隆（宝塔 force push 拒绝浅仓）
-    if (Test-Path ".git\shallow") { & "$Git" fetch --unshallow 2>&1 | Out-Null }
-    & "$Git" pull origin $BRANCH
+    if (Test-Path ".git\shallow") { Git-Run fetch --unshallow | Out-Null }
+    Git-Run pull origin $BRANCH
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  [警告] 拉取失败，尝试重置..."
-        & "$Git" fetch origin $BRANCH
-        & "$Git" reset --hard "origin/$BRANCH"
+        Git-Run fetch origin $BRANCH
+        Git-Run reset --hard "origin/$BRANCH"
     }
     Write-Host "  [OK] 缓存已就绪"
 } else {
     Write-Host "[1/4] 首次使用，克隆仓库（约10秒）..."
     if (Test-Path $CACHE) { Remove-Item -Path $CACHE -Recurse -Force }
-    & "$Git" clone $REPO $CACHE
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[X] 克隆失败！请确认 SSH 已配置、网络可达 GitHub"
-        Read-Host "按回车退出"
+    Git-Run clone $REPO $CACHE
+    if ($LASTEXITCODE -ne 0) {        Write-Host "[X] 克隆失败！请确认 SSH 已配置、网络可达 GitHub"
+        Wait-Exit
         exit 1
     }
     Write-Host "  [OK] 克隆完成"
 }
 
-# ── 复制 JSON ──
+# ── 复制 JSON + version.json ──
 Write-Host ""
 Write-Host "[2/4] 复制数据文件..."
 Set-Location -LiteralPath $CACHE
@@ -170,13 +198,27 @@ $Dest = Join-Path $CACHE "data\after-sale-data-compact.json"
 Copy-Item -Path $SourceFile -Destination $Dest -Force
 Write-Host "  [OK]"
 
+# version.json：优先取源 JSON 同目录（拖入场景），否则回退项目 data 目录
+$VersionSrc = Join-Path (Split-Path -Parent $SourceFile) "version.json"
+if (-not (Test-Path -LiteralPath $VersionSrc)) {
+    $VersionSrc = Join-Path $WORKDIR "data\version.json"
+}
+$HasVersion = Test-Path -LiteralPath $VersionSrc
+if ($HasVersion) {
+    Copy-Item -Path $VersionSrc -Destination (Join-Path $CACHE "data\version.json") -Force
+    Write-Host "  [OK] version.json ($VersionSrc)"
+} else {
+    Write-Host "  [警告] 未找到 version.json，跳过（前端版本提示可能滞后）"
+}
+
 # ── 提交 ──
 Write-Host ""
 Write-Host "[3/4] 提交..."
 & "$Git" config user.email "zhongshanms@github.com"
 & "$Git" config user.name "数据同步"
 & "$Git" add data/after-sale-data-compact.json
-& "$Git" commit -m "data sync: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+if ($HasVersion) { & "$Git" add data/version.json }
+Git-Run commit -m "data sync: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  (内容未变化，跳过提交)"
 } else {
@@ -234,9 +276,9 @@ if (Test-Path "$webroot\data") {
 }
 
 # 确保 server 远程已添加
-$remotes = & "$Git" remote 2>$null
+$remotes = Git-Run remote
 if ($remotes -notcontains $ServerRemote) {
-    & "$Git" remote add $ServerRemote $ServerUrl 2>$null
+    Git-Run remote add $ServerRemote $ServerUrl 2>$null
 }
 
 $results = @{}
@@ -256,4 +298,5 @@ if ($results['github'] -and $results['server']) {
 }
 Write-Host "============================================"
 Write-Host ""
-Read-Host "按回车退出"
+Wait-Exit
+if ($results['github'] -and $results['server']) { exit 0 } else { exit 1 }

@@ -45,7 +45,7 @@ goto CHECK_CONVERT
 :CHECK_CONVERT
 if errorlevel 1 goto ERR_CONVERT
 echo.
-echo [2/2] Pushing to GitHub...
+echo [2/2] 双端推送 (GitHub + 宝塔)...
 echo.
 
 :RUN_SYNC
